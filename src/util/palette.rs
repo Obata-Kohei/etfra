@@ -1,4 +1,4 @@
-use crate::color::Color;
+use crate::util::color::Color;
 
 pub struct Palette (Vec<Color>);
 

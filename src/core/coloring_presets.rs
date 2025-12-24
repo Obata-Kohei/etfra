@@ -1,16 +1,14 @@
-use crate::color::Color;
-use crate::palette::Palette;
-use crate::escape_time_fractal::Float;
-
-pub trait Coloring<T>
-where T: Copy
-{
-    fn color(&self, value: T) -> Color;
-}
+use crate::prelude::*;
 
 pub struct PaletteColoring {
     pub palette: Palette,
     pub max_iter: usize
+}
+
+impl PaletteColoring {
+    pub fn new(palette: Palette, max_iter: usize) -> Self {
+        Self { palette, max_iter }
+    }
 }
 
 impl Coloring<usize> for PaletteColoring {
@@ -23,13 +21,14 @@ impl Coloring<usize> for PaletteColoring {
     }
 }
 
+
 pub struct HistogramColoring {
     cdf: Vec<Float>,
-    palette: Vec<Color>,
+    palette: Palette,
 }
 
 impl HistogramColoring {
-    pub fn prepare(values: &[usize], max_iter: usize, palette: Vec<Color>) -> Self {
+    pub fn prepare(values: &[usize], max_iter: usize, palette: Palette) -> Self {
         let mut hist = vec![0usize; max_iter + 1];
         for &v in values {
             hist[v] += 1;
@@ -52,6 +51,9 @@ impl Coloring<usize> for HistogramColoring {
     fn color(&self, n: usize) -> Color {
         let t = self.cdf[n];
         let idx = (t * (self.palette.len() - 1) as Float) as usize;
-        self.palette[idx]
+        self.palette
+            .get(idx)
+            .copied()
+            .unwrap_or(Color::BLACK)
     }
 }

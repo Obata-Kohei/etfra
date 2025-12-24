@@ -1,19 +1,15 @@
 use num_complex::{self, Complex};
-use crate::complex_dynamics::ComplexDynamics;
-use crate::escape_time_fractal::Float;
-
-pub trait EscapeEvaluator<D: ComplexDynamics> {
-    type Output: Copy;
-    fn evaluate(
-        &self,
-        dynamics: &D,
-        c: Complex<Float>,
-    ) -> Self::Output;
-}
+use crate::prelude::*;
 
 pub struct EscapeByCount {
-    pub max_iter: usize,
-    pub escape_radius: Float,
+    max_iter: usize,
+    escape_radius: Float,
+}
+
+impl EscapeByCount {
+    pub fn new(max_iter: usize, escape_radius: Float) -> Self {
+        Self { max_iter, escape_radius }
+    }
 }
 
 impl<D: ComplexDynamics> EscapeEvaluator<D> for EscapeByCount {

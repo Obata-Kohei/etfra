@@ -1,5 +1,5 @@
 [package]
-name = "mandel-rs"
+name = "etfra"
 version = "0.1.0"
 edition = "2021"
 

@@ -1,19 +1,8 @@
 use std::time::Instant;
-
 use chrono::{Local, DateTime};
 use num_complex::Complex;
-use crate::palette::Palette;
-use crate::escape_time_fractal::EscapeTimeFractal;
-use crate::complex_dynamics as cmpdyn;
-use crate::escape_evaluator as esceval;
-use crate::coloring as clr;
 
-mod color;
-mod palette;
-mod complex_dynamics;
-mod escape_evaluator;
-mod coloring;
-mod escape_time_fractal;
+use etfra::prelude::*;
 
 fn main() {
     let resolution: (usize, usize) = (2048 as usize, 2048 as usize);  // (w, h)
@@ -25,9 +14,9 @@ fn main() {
     let mut palette = Palette::grayscale(256);
     palette.reverse();
 
-    let dynamics = cmpdyn::Mandelbrot {};
-    let escape = esceval::EscapeByCount {max_iter, escape_radius};
-    let coloring = clr::PaletteColoring {palette, max_iter};
+    let dynamics = Mandelbrot::new();
+    let escape = EscapeByCount::new(max_iter, escape_radius);
+    let coloring = PaletteColoring::new(palette, max_iter);
 
     let frc = EscapeTimeFractal::new(dynamics, escape, coloring, resolution, center, view_size);
 

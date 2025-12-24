@@ -286,6 +286,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "etfra"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "image",
+ "num-complex",
+ "rayon",
+]
+
+[[package]]
 name = "exr"
 version = "1.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -517,16 +527,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fae87c125b03c1d2c0150c90365d7d6bcc53fb73a9acaef207d2d065860f062"
 dependencies = [
  "imgref",
-]
-
-[[package]]
-name = "mandel-rs"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "image",
- "num-complex",
- "rayon",
 ]
 
 [[package]]

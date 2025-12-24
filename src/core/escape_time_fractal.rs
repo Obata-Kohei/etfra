@@ -1,13 +1,12 @@
-use crate::color::Color;
-use crate::complex_dynamics::ComplexDynamics;
-use crate::escape_evaluator::EscapeEvaluator;
-use crate::coloring::Coloring;
+use crate::util::color::Color;
+use crate::core::complex_dynamics::ComplexDynamics;
+use crate::core::escape_evaluator::EscapeEvaluator;
+use crate::core::coloring::Coloring;
+use crate::util::types::Float;
 
 use rayon::prelude::*;
 use num_complex::{self, Complex};
 use image::{Rgb, RgbImage};
-
-pub type Float = f64;
 
 pub struct EscapeTimeFractal<D, E, C>
 where

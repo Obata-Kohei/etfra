@@ -1,12 +1,13 @@
 use num_complex::{self, Complex};
-use crate::escape_time_fractal::Float;
-
-pub trait ComplexDynamics {
-    fn initial_z(&self, c: Complex<Float>) -> Complex<Float>;
-    fn step(&self, z: Complex<Float>, c: Complex<Float>) -> Complex<Float>;
-}
+use crate::prelude::*;
 
 pub struct Mandelbrot;
+
+impl Mandelbrot {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
 impl ComplexDynamics for Mandelbrot {
     fn initial_z(&self, _c: Complex<Float>) -> Complex<Float> {
@@ -17,8 +18,15 @@ impl ComplexDynamics for Mandelbrot {
     }
 }
 
+
 pub struct Julia {
     pub c: Complex<Float>,
+}
+
+impl Julia {
+    pub fn new(c: Complex<Float>) -> Self {
+        Self { c }
+    }
 }
 
 impl ComplexDynamics for Julia {
@@ -33,6 +41,12 @@ impl ComplexDynamics for Julia {
 
 
 pub struct BurningShip;
+
+impl BurningShip {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
 
 impl ComplexDynamics for BurningShip {
     fn initial_z(&self, _c: Complex<Float>) -> Complex<Float> {
