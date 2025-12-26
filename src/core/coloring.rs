@@ -5,5 +5,3 @@ where T: Copy
 {
     fn color(&self, value: T) -> Color;
 }
-
-
