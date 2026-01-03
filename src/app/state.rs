@@ -20,7 +20,7 @@ struct ImageConfig {
     scale: Float
 }
 
-enum RenderMode {
+pub enum RenderMode {
     Survey,
     Burst,
 }
@@ -32,6 +32,7 @@ impl RenderMode {
             RenderMode::Burst => (1024, 1024),
         }
     }
+    //pub fn config_resolusion(mode: RenderMode, reso: (usize, usize)) {}
 }
 
 struct History {
@@ -88,8 +89,13 @@ impl AppState {
         self.img_cfg.scale /= self.zoom_ratio;
     }
 
+    pub fn set_resolusion(&mut self, reso: (usize, usize)) {
+        self.img_cfg.resolusion = reso;
+    }
+
     pub fn set_mode(&mut self, mode: RenderMode) {
         self.mode = mode;
+        self.img_cfg.resolusion = self.mode.resolusion();
     }
 
     pub fn set_recomp(&mut self, recomp: bool) {
