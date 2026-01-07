@@ -1,23 +1,25 @@
-use eframe::egui;
 use num::Complex;
-use crate::prelude::*;
+use crate::{app::ui_render::RenderEngine, prelude::*};
 
 pub struct AppState {
-    img_cfg: ImageConfig,
-    mode: RenderMode,
-    recomp: bool,
-    move_ratio: Float,
-    zoom_ratio: Float,
-    history: History,
+    pub img_cfg: ImageConfig,
+    pub mode: RenderMode,
+    pub recomp: bool,  // 再計算の必要があるか
+    pub buf_dirty: bool,  // バッファが更新されたが表示が更新されていないときにtrue
+    pub move_ratio: Float,
+    pub zoom_ratio: Float,
+    pub history: History,
 
-    image: Option<egui::TextureHandle>,
+    pub engine: Box<dyn RenderEngine>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
+
+    pub rgba_buf: Option<Vec<u8>>,
 }
 
 #[derive(Clone)]
-struct ImageConfig {
-    resolusion: (usize, usize),
-    center: Complex<Float>,
-    scale: Float
+pub struct ImageConfig {
+    pub resolution: (usize, usize),
+    pub center: Complex<Float>,
+    pub scale: Float
 }
 
 pub enum RenderMode {
@@ -35,7 +37,7 @@ impl RenderMode {
     //pub fn config_resolusion(mode: RenderMode, reso: (usize, usize)) {}
 }
 
-struct History {
+pub struct History {
     stack: Vec<ImageConfig>,
 }
 
@@ -44,41 +46,88 @@ impl AppState {
         img_cfg: ImageConfig,
         mode: RenderMode,
         recomp: bool,
+        buf_dirty: bool,
         move_ratio: Float,
         zoom_ratio: Float,
         history: History,
 
-        image: Option<egui::TextureHandle>,
+        engine: Box<dyn RenderEngine>,
+
+        rgba_buf: Option<Vec<u8>>,
     ) -> Self {
-        Self {img_cfg, mode, recomp, move_ratio, zoom_ratio, history, image}
+        Self {img_cfg, mode, recomp, buf_dirty, move_ratio, zoom_ratio, history, engine, rgba_buf}
     }
 
     pub fn with_preset_values() -> Self {
+        let resolution = RenderMode::Survey.resolusion();
+        let center = Complex::new(-0.5, 0.0);
+        let scale = 0.001;
+        let img_cfg = ImageConfig {resolution, center, scale};
+        let mode = RenderMode::Survey;
+        let max_iter = 300;
+        let move_ratio = 0.1;
+        let zoom_ratio = 0.1;
+        let dynamics = Mandelbrot::new();
+        let escape_radius = 2.0;
+        let escape = EscapeByCount::new(max_iter, escape_radius);
+        let palette = Palette::grayscale(256);
+        let coloring = PaletteColoring::new(palette, max_iter);
+        let view_size = (resolution.0 as Float * scale, resolution.1 as Float * scale);
+
         Self {
-            img_cfg: ImageConfig { resolusion: RenderMode::Survey.resolusion(), center: Complex::ZERO, scale: 0.001, },
-            mode: RenderMode::Survey,
+            img_cfg,
+            mode,
             recomp: false,
-            move_ratio: 0.1,
-            zoom_ratio: 0.1,
+            buf_dirty: false,
+            move_ratio,
+            zoom_ratio,
             history: History { stack: Vec::new() },
-            image: None,
+            engine: Box::new(
+                EscapeTimeFractal::new(
+                    dynamics,
+                    escape,
+                    coloring,
+                    resolution,
+                    center,
+                    view_size
+                )
+            ),
+            rgba_buf: None,
+        }
+    }
+
+    pub fn compute_if_needed(&mut self) {
+        if self.recomp {
+            let buf = self.engine.compute();
+            self.rgba_buf = Some(buf);
+            self.recomp = false;
+            self.buf_dirty = true;
+        }
+    }
+
+    pub fn compute_if_needed_par(&mut self) {
+        if self.recomp {
+            let buf = self.engine.compute_par();
+            self.rgba_buf = Some(buf);
+            self.recomp = false;
+            self.buf_dirty = true;
         }
     }
 
     pub fn move_left(&mut self) {
-        self.img_cfg.center.re -= (self.img_cfg.scale * self.img_cfg.resolusion.0 as Float) * self.move_ratio;
+        self.img_cfg.center.re -= (self.img_cfg.scale * self.img_cfg.resolution.0 as Float) * self.move_ratio;
     }
 
     pub fn move_right(&mut self) {
-        self.img_cfg.center.re += (self.img_cfg.scale * self.img_cfg.resolusion.0 as Float) * self.move_ratio;
+        self.img_cfg.center.re += (self.img_cfg.scale * self.img_cfg.resolution.0 as Float) * self.move_ratio;
     }
 
     pub fn move_up(&mut self) {
-        self.img_cfg.center.im += (self.img_cfg.scale * self.img_cfg.resolusion.1 as Float) * self.move_ratio;
+        self.img_cfg.center.im += (self.img_cfg.scale * self.img_cfg.resolution.1 as Float) * self.move_ratio;
     }
 
     pub fn move_down(&mut self) {
-        self.img_cfg.center.im -= (self.img_cfg.scale * self.img_cfg.resolusion.1 as Float) * self.move_ratio;
+        self.img_cfg.center.im -= (self.img_cfg.scale * self.img_cfg.resolution.1 as Float) * self.move_ratio;
     }
 
     pub fn zoom_in(&mut self) {
@@ -89,13 +138,17 @@ impl AppState {
         self.img_cfg.scale /= self.zoom_ratio;
     }
 
-    pub fn set_resolusion(&mut self, reso: (usize, usize)) {
-        self.img_cfg.resolusion = reso;
+    pub fn get_resolution(&self) -> (usize, usize) {
+        self.img_cfg.resolution
+    }
+
+    pub fn set_resolution(&mut self, reso: (usize, usize)) {
+        self.img_cfg.resolution = reso;
     }
 
     pub fn set_mode(&mut self, mode: RenderMode) {
         self.mode = mode;
-        self.img_cfg.resolusion = self.mode.resolusion();
+        self.img_cfg.resolution = self.mode.resolusion();
     }
 
     pub fn set_recomp(&mut self, recomp: bool) {

@@ -123,6 +123,45 @@ where
             .collect()
     }
 
+    // ラスタースキャン順のピクセルが，rgbargba...と並ぶbuffer
+    pub fn rgba_buf_from_colors(&self, colors: &[Color]) -> Vec<u8> {
+        let (w, h) = self.resolution;
+        assert_eq!(colors.len(), w * h);
+        let mut buf = vec![0u8; w * h * 4];
+
+        buf.chunks_mut(4)
+            .enumerate()
+            .for_each(|(i, px)| {
+                let c = &colors[i];
+                px[0] = c.get_r();
+                px[1] = c.get_g();
+                px[2] = c.get_b();
+                px[3] = c.get_a();
+            });
+
+        buf
+    }
+
+    // ラスタースキャン順のピクセルが，rgbargba...と並ぶbuffer par
+    pub fn rgba_buf_from_colors_par(&self, colors: &[Color]) -> Vec<u8> {
+        let (w, h) = self.resolution;
+        assert_eq!(colors.len(), w * h);
+        let mut buf = vec![0u8; w * h * 4];
+
+        buf.par_chunks_mut(4)
+            .enumerate()
+            .for_each(|(i, px)| {
+                let c = &colors[i];
+                px[0] = c.get_r();
+                px[1] = c.get_g();
+                px[2] = c.get_b();
+                px[3] = c.get_a();
+            });
+
+        buf
+    }
+
+
     pub fn render_from_colors(&self, colors: &[Color]) -> RgbImage {
         let (w, h) = self.resolution;
         let mut buf = vec![0u8; w * h * 3];

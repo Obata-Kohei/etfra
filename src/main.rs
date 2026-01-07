@@ -1,4 +1,4 @@
-use eframe::egui;
+use eframe;
 use etfra::prelude::*;
 
 fn main() -> eframe::Result<()> {

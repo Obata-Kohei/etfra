@@ -17,5 +17,9 @@ pub use crate::{
         coloring_presets::*,
 
         escape_time_fractal::EscapeTimeFractal,
+    },
+
+    app::{
+        app::App,
     }
 };
