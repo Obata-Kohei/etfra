@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub struct PaletteColoring {
     pub palette: Palette,
     pub max_iter: usize
@@ -22,6 +23,7 @@ impl Coloring<usize> for PaletteColoring {
 }
 
 
+#[derive(Debug)]
 pub struct HistogramColoring {
     cdf: Vec<Float>,
     palette: Palette,

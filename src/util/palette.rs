@@ -1,5 +1,6 @@
 use crate::util::color::Color;
 
+#[derive(Debug)]
 pub struct Palette (Vec<Color>);
 
 impl Palette {

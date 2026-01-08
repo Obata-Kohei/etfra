@@ -14,12 +14,12 @@ where
     E: EscapeEvaluator<D>,
     C: Coloring<E::Output>
 {
-    dynamics: D,  // 力学系の定義
-    escape: E,  // escape評価器
-    coloring: C,  // 色付け
-    resolution: (usize, usize),  // 描画画像サイズ(w, h)
-    center: Complex<Float>,  // 描画の中心の複素数座標
-    view_size: (Float, Float),  // 描画する範囲(re, im)
+    pub dynamics: D,  // 力学系の定義
+    pub escape: E,  // escape評価器
+    pub coloring: C,  // 色付け
+    pub resolution: (usize, usize),  // 描画画像サイズ(w, h)
+    pub center: Complex<Float>,  // 描画の中心の複素数座標
+    pub view_size: (Float, Float),  // 描画する範囲(re, im)
 }
 
 impl<D, E, C> EscapeTimeFractal<D, E, C>

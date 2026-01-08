@@ -1,6 +1,7 @@
 use num_complex::{self, Complex};
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub struct Mandelbrot;
 
 impl Mandelbrot {
@@ -19,6 +20,7 @@ impl ComplexDynamics for Mandelbrot {
 }
 
 
+#[derive(Debug)]
 pub struct Julia {
     pub c: Complex<Float>,
 }

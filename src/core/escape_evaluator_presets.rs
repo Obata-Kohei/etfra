@@ -1,6 +1,7 @@
 use num_complex::{self, Complex};
 use crate::prelude::*;
 
+#[derive(Debug)]
 pub struct EscapeByCount {
     max_iter: usize,
     escape_radius: Float,
