@@ -12,6 +12,9 @@ pub use crate::{
         complex_dynamics::ComplexDynamics,
         complex_dynamics_presets::*,
 
+        escape_condition::EscapeCondition,
+        escape_condition::*,
+
         escape_evaluator::EscapeEvaluator,
         escape_evaluator_presets::*,
 

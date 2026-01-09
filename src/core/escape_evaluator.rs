@@ -1,12 +1,18 @@
-use num_complex::{self, Complex};
-use crate::core::complex_dynamics::ComplexDynamics;
-use crate::util::types::Float;
+use crate::prelude::*;
 
-pub trait EscapeEvaluator<D: ComplexDynamics> {
+pub trait EscapeEvaluator<D: Dynamics> {
     type Output: Copy;
+
     fn evaluate(
         &self,
         dynamics: &D,
-        c: Complex<Float>,
+        p: &D::Param,
     ) -> Self::Output;
+}
+
+pub struct EscapeResult {
+    escaped: bool,
+    iter: usize,
+    max_iter: usize,
+    
 }
