@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub trait EscapeEvaluator<D: Dynamics> {
-    type Output: Copy;
+    type Output;
 
     fn evaluate(
         &self,
@@ -14,5 +14,5 @@ pub struct EscapeResult {
     escaped: bool,
     iter: usize,
     max_iter: usize,
-    
+
 }
