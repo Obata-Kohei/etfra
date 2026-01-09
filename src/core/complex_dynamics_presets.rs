@@ -11,6 +11,12 @@ impl Mandelbrot {
 }
 
 impl ComplexDynamics for Mandelbrot {
+    fn initial_state(&self, )
+}
+
+/*
+impl ComplexDynamics for Mandelbrot {
+    fn initial_state(&self, )
     fn initial_z(&self, _c: Complex<Float>) -> Complex<Float> {
         Complex::ZERO
     }
@@ -18,6 +24,7 @@ impl ComplexDynamics for Mandelbrot {
         z * z + c
     }
 }
+    */
 
 
 #[derive(Debug)]

@@ -7,6 +7,8 @@ pub use crate::{
     },
 
     core::{
+        dynamics::Dynamics,
+
         complex_dynamics::ComplexDynamics,
         complex_dynamics_presets::*,
 

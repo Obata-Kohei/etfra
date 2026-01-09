@@ -1,3 +1,4 @@
+pub mod dynamics;
 pub mod complex_dynamics;
 pub mod complex_dynamics_presets;
 
