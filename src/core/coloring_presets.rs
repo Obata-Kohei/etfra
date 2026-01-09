@@ -3,7 +3,6 @@ use crate::prelude::*;
 #[derive(Debug)]
 pub struct ColoringByPalette {
     pub palette: Palette,
-    pub max_iter: usize,
 }
 
 impl Coloring<usize> for ColoringByPalette {
