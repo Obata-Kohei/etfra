@@ -1,5 +1,7 @@
-use crate::prelude::*;
+//use crate::prelude::*;
 
+
+/*
 #[derive(Debug)]
 pub struct ColoringByPalette {
     pub palette: Palette,
@@ -59,3 +61,4 @@ impl Coloring<usize> for ColoringByHistgram {
     }
 }
 
+*/

@@ -11,19 +11,26 @@ where
     D: Dynamics,
     C: EscapeCondition<D::State>,
 {
-    type Output = usize;
-
-    fn evaluate(&self, dynamics: &D, p: &<D as Dynamics>::Param,) -> Self::Output {
+    fn evaluate(&self, dynamics: &D, p: &D::Param) -> EscapeResult {
         let mut state = dynamics.initial_state(p);
 
         for i in 1..=self.max_iter {
-            if self.condition.escaped(&state) {
-                return i;
-            }
             state = dynamics.step(&state, p);
+
+            if self.condition.escaped(&state) {
+                return EscapeResult {
+                    escaped: true,
+                    iter: i,
+                    //last_state: Some(state),
+                };
+            }
         }
 
-        self.max_iter
+        EscapeResult {
+            escaped: false,
+            iter: self.max_iter,
+            //last_state: None,
+        }
     }
 }
 

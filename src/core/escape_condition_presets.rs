@@ -29,11 +29,11 @@ impl EscapeCondition<Complex<Float>> for EscapeByBox{
 
 
 #[derive(Debug)]
-pub struct Converged {
+pub struct EscapeByConverged {
     pub eps: Float,
 }
 
-impl EscapeCondition<Complex<Float>> for Converged {
+impl EscapeCondition<Complex<Float>> for EscapeByConverged {
     fn escaped(&self, z: &Complex<Float>) -> bool {
         z.norm_sqr() < self.eps * self.eps
     }

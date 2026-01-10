@@ -1,12 +1,108 @@
-use crate::util::color::Color;
-use crate::core::complex_dynamics::ComplexDynamics;
-use crate::core::escape_evaluator::EscapeEvaluator;
-use crate::core::coloring::Coloring;
-use crate::util::types::Float;
+use crate::{app::state::ImageConfig, prelude::*};
 
+use eframe::egui::Image;
 use rayon::prelude::*;
 use num_complex::{self, Complex};
-use image::{Rgb, RgbImage};
+use image::{Rgb, RgbImage, RgbaImage};
+
+
+pub struct EscapeTimeFractal<D, E, N, M>
+where
+    D: Dynamics,
+    E: EscapeEvaluator<D>,
+    N: NormalizeEscInfo<EscapeResult>,
+    M: ColorMap,
+{
+    pub dynamics: D,
+    pub escape_evaluator: E,
+    pub coloring: Coloring<N, M>
+}
+
+impl<D, E, N, M> EscapeTimeFractal<D, E, N, M>
+where
+    D: Dynamics + Sync,
+    E: EscapeEvaluator<D> + Sync,
+    N: NormalizeEscInfo<EscapeResult> + Sync,
+    M: ColorMap + Sync,
+{
+    pub fn new(dynamics: D, escape_evaluator: E, coloring: Coloring<N, M>) -> Self {
+        Self {
+            dynamics,
+            escape_evaluator,
+            coloring,
+        }
+    }
+
+    pub fn escape_results(&self, img_cfg: &ImageConfig) -> Vec<EscapeResult> {
+        let (w, h) = img_cfg.resolution;
+        let view_bounds = img_cfg.view_bounds();
+
+        (0..w*h)
+            .into_iter()
+            .map(|i| {
+                let col = i % w;
+                let row = i / w;
+                let xy = img_cfg.pixel_to_xyplane((col, row), view_bounds);
+                let p = self.dynamics.param_from_xy(xy);
+                self.escape_evaluator.evaluate(&self.dynamics, &p)
+            })
+            .collect()
+    }
+
+    pub fn colors_from_escape_results(&self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        escape_results
+            .iter()
+            .map(|esc_res| self.coloring.apply(&esc_res))
+            .collect()
+    }
+
+    pub fn rgba_buf_from_colors(&self, colors: &[Color]) -> Vec<u8> {
+        colors
+            .iter()
+            .flat_map(|c| c.as_rgba().iter().copied())
+            .collect()
+    }
+
+    pub fn rgba_image_from_colors(&self, colors: &[Color], img_cfg: &ImageConfig) -> RgbaImage {
+        let rgba = self.rgba_buf_from_colors(colors);
+        RgbaImage::from_raw(img_cfg.resolution.0 as u32, img_cfg.resolution.1 as u32, rgba)
+            .expect("RgbImage should be made. size or buf error.")
+    }
+
+    pub fn escape_results_par(&self, img_cfg: &ImageConfig) -> Vec<EscapeResult> {
+        let (w, h) = img_cfg.resolution;
+        let view_bounds = img_cfg.view_bounds();
+
+        (0..w*h)
+            .into_par_iter()
+            .map(|i| {
+                let col = i % w;
+                let row = i / w;
+                let xy = img_cfg.pixel_to_xyplane((col, row), view_bounds);
+                let p = self.dynamics.param_from_xy(xy);
+                self.escape_evaluator.evaluate(&self.dynamics, &p)
+            })
+            .collect()
+    }
+
+    pub fn colors_from_escape_resultspar(&self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        escape_results
+            .par_iter()
+            .map(|esc_res| self.coloring.apply(&esc_res))
+            .collect()
+    }
+
+    pub fn rgba_buf_from_colors_par(&self, colors: &[Color]) -> Vec<u8> {
+        colors
+            .par_iter()
+            .flat_map(|c| c.as_rgba().iter().copied())
+            .collect()
+    }
+
+
+}
+
+
 
 pub struct EscapeTimeFractal<D, E, C>
 where

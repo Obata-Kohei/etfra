@@ -1,13 +1,17 @@
 use crate::prelude::*;
-pub trait Coloring<T> {
-    fn prepare(&mut self, values: &[T]);  // 空実装でいい．
-    fn apply(&self, value: T) -> Color;
+
+pub struct Coloring<N, M> {
+    pub normalizer: N,
+    pub color_map: M,
 }
 
-pub trait NormalizeEscRes {
-    fn normalize(&self, value: EscapeResult) -> Float;
-}
-
-pub trait ColorMap {
-    fn map(&self, t: Float) -> Color;
+impl<N, M> Coloring<N, M>
+where
+    N: NormalizeEscInfo<EscapeResult>,
+    M: ColorMap,
+{
+    pub fn apply(&self, esc_res: &EscapeResult) -> Color {
+        let t = self.normalizer.normalize(esc_res);
+        self.color_map.map(t)
+    }
 }

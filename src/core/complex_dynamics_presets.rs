@@ -14,6 +14,10 @@ impl Dynamics for Mandelbrot {
     type State = Complex<Float>;
     type Param = Complex<Float>;
 
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
     fn initial_state(&self, _p: &Self::Param) -> Self::State {
         Complex::ZERO
     }
@@ -41,6 +45,10 @@ impl Dynamics for Julia {
     type State = Complex<Float>;
     type Param = Complex<Float>;
 
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
     fn initial_state(&self, p: &Self::Param) -> Self::State {
         *p
     }
@@ -65,6 +73,10 @@ impl BurningShip {
 impl Dynamics for BurningShip {
     type State = Complex<Float>;
     type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
+    }
 
     fn initial_state(&self, _p: &Self::Param) -> Self::State {
         Complex::ZERO

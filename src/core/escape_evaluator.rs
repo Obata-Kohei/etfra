@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub trait EscapeEvaluator<D: Dynamics> {
+pub trait EscapeEvaluator<D: Dynamics> {    
     fn evaluate(
         &self,
         dynamics: &D,
@@ -8,14 +8,15 @@ pub trait EscapeEvaluator<D: Dynamics> {
     ) -> EscapeResult;
 }
 
+#[derive(Debug, Default)]
 pub struct EscapeResult {
-    escaped: bool,
-    iter: usize,
-    max_iter: usize,
+    pub escaped: bool,
+    pub iter: usize,
+    //pub nu: Float,  // smooth coloring
 }
 
 impl EscapeResult {
-    pub fn new(escaped: bool, iter: usize, max_iter: usize) -> Self {
-        Self {escaped, iter, max_iter}
+    pub fn new(escaped: bool, iter: usize) -> Self {
+        Self {escaped, iter}
     }
 }
