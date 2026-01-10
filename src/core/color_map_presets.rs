@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
-struct ColorMapLinear {
-    palette: Palette,
+pub struct ColorMapLinear {
+    pub palette: Palette,
 }
 
 impl ColorMap for ColorMapLinear {

@@ -3,6 +3,7 @@ pub use crate::{
     util::{
         color::Color,
         palette::Palette,
+        image_config::ImageConfig,
         types::*,
     },
 
@@ -25,12 +26,12 @@ pub use crate::{
         color_map_presets::*,
 
         coloring::Coloring,
-        coloring_presets::*,
+        //coloring_presets::*,
 
         escape_time_fractal::EscapeTimeFractal,
     },
 
     app::{
-        app::App,
+        app::*,
     }
 };

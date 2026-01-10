@@ -1,5 +1,6 @@
 use crate::prelude::*;
 
+#[derive(Debug, Clone)]
 pub struct ImageConfig {
     pub resolution: (usize, usize),   // (w, h)
     pub scale: (Float, Float),  // 1 pxあたりの座標平面の長さ．(x, y). F: Float?

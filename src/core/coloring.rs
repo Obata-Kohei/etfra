@@ -14,4 +14,12 @@ where
         let t = self.normalizer.normalize(esc_res);
         self.color_map.map(t)
     }
+
+    pub fn normalizer(&self) -> &N {
+        &self.normalizer
+    }
+
+    pub fn color_map(&self) -> &M {
+        &self.color_map
+    }
 }

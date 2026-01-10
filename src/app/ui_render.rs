@@ -1,36 +1,68 @@
-use crate::{app::state::ImageConfig, prelude::*};
+use eframe::egui;
+use egui::Image;
+use crate::prelude::*;
+use crate::app::state::AppState;
 
 pub trait RenderEngine {
     // ラスタースキャン順でrgbargba...の順で
-    fn compute(&mut self, img_cfg: &ImageConfig) -> Vec<u8>;
-    fn compute_par(&mut self, img_cfg: &ImageConfig) -> Vec<u8>;
+    fn compute(&self, image_config: &ImageConfig) -> Vec<u8>;
+    fn compute_par(&self, image_config: &ImageConfig) -> Vec<u8>;
 }
 
-impl<D, E, C> RenderEngine for EscapeTimeFractal<D, E, C>
+
+impl<D, E, N, M> RenderEngine for EscapeTimeFractal<D, E, N, M>
 where
-    D: ComplexDynamics + Sync + 'static,
+    D: Dynamics + Sync + 'static,
     E: EscapeEvaluator<D> + Sync + 'static,
-    C: Coloring<E::Output> + Sync + 'static,
-    E::Output: Sync + Send,
+    N: NormalizeEscInfo<EscapeResult> + Sync + 'static,
+    M: ColorMap + Sync + Send + 'static,
 {
-    fn compute(&mut self, img_cfg: &ImageConfig) -> Vec<u8> {
-        self.resolution = img_cfg.resolution;
-        self.center = img_cfg.center;
-        self.view_size.0 = img_cfg.scale * img_cfg.resolution.0 as Float;
-        self.view_size.1 = img_cfg.scale * img_cfg.resolution.1 as Float;
-        let values = self.escape_values();
-        let colors = self.colors_from_values(&values);
+    fn compute(&self, image_config: &ImageConfig) -> Vec<u8> {
+        let escape_results = self.escape_results(image_config);
+        let colors = self.colors_from_escape_results(&escape_results);
         self.rgba_buf_from_colors(&colors)
     }
-    fn compute_par(&mut self, img_cfg: &ImageConfig) -> Vec<u8> {
-        self.resolution = img_cfg.resolution;
-        self.center = img_cfg.center;
-        self.view_size.0 = img_cfg.scale * img_cfg.resolution.0 as Float;
-        self.view_size.1 = img_cfg.scale * img_cfg.resolution.1 as Float;
-        let values = self.escape_values_par();
-        let colors = self.colors_from_values_par(&values);
+
+    fn compute_par(&self, image_config: &ImageConfig) -> Vec<u8> {
+        let escape_results = self.escape_results_par(image_config);
+        let colors = self.colors_from_escape_results_par(&escape_results);
         self.rgba_buf_from_colors_par(&colors)
     }
+}
+
+
+pub fn show_side_panel(ctx: &egui::Context, state: &AppState) {
+    egui::SidePanel::left("side_panel").show(ctx, |ui| {
+        ui.heading("State");
+
+        let (w, h) = state.img_cfg.resolution;
+        ui.label(format!("resolution: {}x{}", w, h));
+        ui.label(format!("center: ({}, {})", state.img_cfg.center.0, state.img_cfg.center.1));
+        ui.label(format!("scale: x->{}, y->{}", state.img_cfg.scale.0, state.img_cfg.scale.1));
+
+        ui.label(format!("mode: {:?}", state.mode));
+        ui.label(format!("recomp: {}", state.recomp));
+        ui.label(format!("buf_dirty: {}", state.buf_dirty));
+
+        ui.label(format!(
+            "history length: {}",
+            state.history.stack.len()
+        ));
+    });
+}
+
+
+pub fn show_central_panel(ctx: &egui::Context, texture: &Option<egui::TextureHandle>,) {
+    egui::CentralPanel::default().show(ctx, |ui| {
+        let display_size = ui.available_size();
+
+        if let Some(tex) = texture {
+            ui.add(
+                Image::new(tex)
+                    .fit_to_exact_size(display_size),
+            );
+        }
+    });
 }
 
 /*

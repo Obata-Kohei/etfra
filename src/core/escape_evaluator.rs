@@ -1,6 +1,6 @@
 use crate::prelude::*;
 
-pub trait EscapeEvaluator<D: Dynamics> {    
+pub trait EscapeEvaluator<D: Dynamics> {
     fn evaluate(
         &self,
         dynamics: &D,
