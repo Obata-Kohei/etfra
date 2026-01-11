@@ -32,7 +32,10 @@ where
 
 
 pub fn show_side_panel(ctx: &egui::Context, state: &AppState) {
-    egui::SidePanel::left("side_panel").show(ctx, |ui| {
+    egui::SidePanel::left("side_panel")
+        .default_width(200.)
+        .width_range(200.0..=400.0)
+        .show(ctx, |ui| {
         ui.heading("State");
 
         let (w, h) = state.img_cfg.resolution;
