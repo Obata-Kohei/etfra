@@ -26,7 +26,7 @@ impl RenderMode {
     pub fn resolusion(&self) -> (usize, usize) {
         match self {
             RenderMode::Survey => (64, 64),
-            RenderMode::Burst => (1024, 1024),
+            RenderMode::Burst => (512, 512),
         }
     }
     //pub fn config_resolusion(mode: RenderMode, reso: (usize, usize)) {}
@@ -157,8 +157,16 @@ impl AppState {
     }
 
     pub fn set_mode(&mut self, mode: RenderMode) {
+        let view_size = self.img_cfg.view_size();
+
+
         self.mode = mode;
         self.img_cfg.resolution = self.mode.resolusion();
+
+        let w = Float::from_usize(self.mode.resolusion().0).expect("Float should be converted from usize.");
+        let h = Float::from_usize(self.mode.resolusion().1).expect("Float should be converted from usize.");
+        self.img_cfg.scale.0 = view_size.0 / w;
+        self.img_cfg.scale.1 = view_size.1 / h;
     }
 
     pub fn set_recomp(&mut self, recomp: bool) {
