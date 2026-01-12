@@ -5,13 +5,14 @@ use crate::app::ui_render::RenderEngine;
 pub struct AppState {
     pub img_cfg: ImageConfig,
     pub mode: RenderMode,
+    pub is_computing: bool,
     pub recomp: bool,  // 再計算の必要があるか
     pub buf_dirty: bool,  // バッファが更新されたが表示が更新されていないときにtrue
     pub move_ratio: Float,
     pub zoom_ratio: Float,
     pub history: History,
 
-    pub engine: Box<dyn RenderEngine>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
+    pub engine: Option<Box<dyn RenderEngine>>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
 
     pub rgba_buf: Option<Vec<u8>>,
 }
@@ -41,17 +42,18 @@ impl AppState {
     pub fn new(
         img_cfg: ImageConfig,
         mode: RenderMode,
+        is_computing: bool,
         recomp: bool,
         buf_dirty: bool,
         move_ratio: Float,
         zoom_ratio: Float,
         history: History,
 
-        engine: Box<dyn RenderEngine>,
+        engine: Option<Box<dyn RenderEngine>>,
 
         rgba_buf: Option<Vec<u8>>,
     ) -> Self {
-        Self {img_cfg, mode, recomp, buf_dirty, move_ratio, zoom_ratio, history, engine, rgba_buf}
+        Self {img_cfg, mode, is_computing, recomp, buf_dirty, move_ratio, zoom_ratio, history, engine, rgba_buf}
     }
 
     pub fn with_preset_values() -> Self {
@@ -67,6 +69,7 @@ impl AppState {
             scale,
             center,
         );
+        let is_computing = false;
         let recomp = true;
         let buf_dirty = true;
         let move_ratio = 0.1;
@@ -90,31 +93,14 @@ impl AppState {
         Self {
             img_cfg,
             mode,
+            is_computing,
             recomp,
             buf_dirty,
             move_ratio,
             zoom_ratio,
             history,
-            engine: Box::new(etf),
+            engine: Some(Box::new(etf)),
             rgba_buf: None,
-        }
-    }
-
-    pub fn compute_if_needed(&mut self) {
-        if self.recomp {
-            let buf = self.engine.compute(&self.img_cfg);
-            self.rgba_buf = Some(buf);
-            self.recomp = false;
-            self.buf_dirty = true;
-        }
-    }
-
-    pub fn compute_if_needed_par(&mut self) {
-        if self.recomp {
-            let buf = self.engine.compute_par(&self.img_cfg);
-            self.rgba_buf = Some(buf);
-            self.recomp = false;
-            self.buf_dirty = true;
         }
     }
 
