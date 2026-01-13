@@ -1,220 +1,218 @@
-use crate::util::color::Color;
-use crate::core::complex_dynamics::ComplexDynamics;
-use crate::core::escape_evaluator::EscapeEvaluator;
-use crate::core::coloring::Coloring;
-use crate::util::types::Float;
+use std::sync::atomic::{Ordering, AtomicBool};
 
+use crate::prelude::*;
 use rayon::prelude::*;
-use num_complex::{self, Complex};
-use image::{Rgb, RgbImage};
+use image::RgbaImage;
 
-pub struct EscapeTimeFractal<D, E, C>
+
+pub struct EscapeTimeFractal<D, E, N, M>
 where
-    D: ComplexDynamics,
+    D: Dynamics,
     E: EscapeEvaluator<D>,
-    C: Coloring<E::Output>
+    N: NormalizeEscInfo<EscapeResult>,
+    M: ColorMap,
 {
-    pub dynamics: D,  // 力学系の定義
-    pub escape: E,  // escape評価器
-    pub coloring: C,  // 色付け
-    pub resolution: (usize, usize),  // 描画画像サイズ(w, h)
-    pub center: Complex<Float>,  // 描画の中心の複素数座標
-    pub view_size: (Float, Float),  // 描画する範囲(re, im)
+    pub dynamics: D,
+    pub escape_evaluator: E,
+    pub coloring: Coloring<N, M>
 }
 
-impl<D, E, C> EscapeTimeFractal<D, E, C>
+impl<D, E, N, M> EscapeTimeFractal<D, E, N, M>
 where
-    D: ComplexDynamics + Sync,
-    E: EscapeEvaluator<D> + Sync,
-    C: Coloring<E::Output> + Sync,
-    E::Output: Sync + Send,
+    D: Dynamics,
+    E: EscapeEvaluator<D>,
+    N: NormalizeEscInfo<EscapeResult>,
+    M: ColorMap,
 {
-    pub fn new(
-        dynamics: D,
-        escape: E,
-        coloring: C,
-        resolution: (usize, usize),
-        center: Complex<Float>,
-        view_size: (Float, Float),
-    ) -> Self {
-        EscapeTimeFractal {
+    pub fn new(dynamics: D, escape_evaluator: E, coloring: Coloring<N, M>) -> Self {
+        Self {
             dynamics,
-            escape,
+            escape_evaluator,
             coloring,
-            resolution,
-            center,
-            view_size,
         }
     }
 
-    // (remin, remax, immin, immax)を返す
-    #[inline]
-    fn view_bounds(&self) -> (Float, Float, Float, Float) {
-        let (w, h) = self.view_size;
-        (
-            self.center.re - w / 2.0,
-            self.center.re + w / 2.0,
-            self.center.im - h / 2.0,
-            self.center.im + h / 2.0,
-        )
-    }
-
-    fn pixel_to_complex(
-        &self,
-        point: (usize, usize),
-        view_bounds: (Float, Float, Float, Float),
-    ) -> Complex<Float> {
-        let (x, y) = point;
-        let (re_min, re_max, im_min, im_max) = view_bounds;
-        let (w, h) = self.resolution;
-
-        let t = x as Float / w as Float;
-        let re = re_min + t * (re_max - re_min);
-
-        let t = y as Float / h as Float;
-        let im = im_max + t * (im_min - im_max);
-
-        Complex {re, im}
-    }
-
-    pub fn escape_values(&self) -> Vec<E::Output> {
-        let (w, h) = self.resolution;
-        let bounds = self.view_bounds();
+    pub fn escape_results(&self, image_config: &ImageConfig) -> Vec<EscapeResult> {
+        let (w, h) = image_config.resolution;
+        let view_size = image_config.view_size();
+        let view_bounds = image_config.view_bounds(view_size);
 
         (0..w*h)
             .into_iter()
             .map(|i| {
-                let x = i % w;
-                let y = i / w;
-                let z = self.pixel_to_complex((x, y), bounds);
-                self.escape.evaluate(&self.dynamics, z)
+                let col = i % w;
+                let row = i / w;
+                let xy = image_config.pixel_to_xyplane((col, row), view_bounds);
+                let p = self.dynamics.param_from_xy(xy);
+                self.escape_evaluator.evaluate(&self.dynamics, &p)
             })
             .collect()
     }
 
-    pub fn escape_values_par(&self) -> Vec<E::Output> {
-        let (w, h) = self.resolution;
-        let bounds = self.view_bounds();
+    pub fn colors_from_escape_results(&mut self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        self.coloring.normalizer.prepare(escape_results);
+        escape_results
+            .iter()
+            .map(|esc_res| self.coloring.apply(&esc_res))
+            .collect()
+    }
 
-        (0..w * h)
+    pub fn rgba_buf_from_colors(&self, colors: &[Color]) -> Vec<u8> {
+        colors
+            .iter()
+            .flat_map(|c| c.as_rgba().iter().copied())
+            .collect()
+    }
+
+    pub fn rgba_image_from_colors(&self, colors: &[Color], image_config: &ImageConfig) -> RgbaImage {
+        let rgba = self.rgba_buf_from_colors(colors);
+        RgbaImage::from_raw(image_config.resolution.0 as u32, image_config.resolution.1 as u32, rgba)
+            .expect("RgbImage should be made. size or buf error.")
+    }
+
+    // escapeにかかったiter回数をu8へ写像し，Vec<u8>とする
+    pub fn u8buf(&self, escape_results:  &[EscapeResult]) -> Vec<u8> {
+        let max_iter = self.coloring.normalizer.max_iter();
+        escape_results
+            .iter()
+            .map(|e| {
+                let v = (e.iter as f64 / max_iter as f64) * 255.0;
+                v.min(255.0) as u8
+            })
+            .collect()
+    }
+}
+
+
+/* par */
+impl<D, E, N, M> EscapeTimeFractal<D, E, N, M>
+where
+    D: Dynamics + Sync,
+    E: EscapeEvaluator<D> + Sync,
+    N: NormalizeEscInfo<EscapeResult> + Sync,
+    M: ColorMap + Sync,
+{
+    pub fn escape_results_par(&self, image_config: &ImageConfig) -> Vec<EscapeResult> {
+        let (w, h) = image_config.resolution;
+        let view_size = image_config.view_size();
+        let view_bounds = image_config.view_bounds(view_size);
+
+        (0..w*h)
             .into_par_iter()
             .map(|i| {
-                let x = i % w;
-                let y = i / w;
-                let z = self.pixel_to_complex((x, y), bounds);
-                self.escape.evaluate(&self.dynamics, z)
+                let col = i % w;
+                let row = i / w;
+                let xy = image_config.pixel_to_xyplane((col, row), view_bounds);
+                let p = self.dynamics.param_from_xy(xy);
+                self.escape_evaluator.evaluate(&self.dynamics, &p)
             })
             .collect()
     }
 
-    pub fn colors_from_values(&self, values: &[E::Output]) -> Vec<Color> {
-        values
-            .iter()
-            .map(|&v| {
-                self.coloring.color(v)
-            })
-            .collect()
-    }
-
-    pub fn colors_from_values_par(&self, values: &[E::Output]) -> Vec<Color> {
-        values
+    pub fn colors_from_escape_results_par(&self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        escape_results
             .par_iter()
-            .map(|&v| self.coloring.color(v))
+            .map(|esc_res| self.coloring.apply(&esc_res))
             .collect()
     }
 
-    // ラスタースキャン順のピクセルが，rgbargba...と並ぶbuffer
-    pub fn rgba_buf_from_colors(&self, colors: &[Color]) -> Vec<u8> {
-        let (w, h) = self.resolution;
-        assert_eq!(colors.len(), w * h);
-        let mut buf = vec![0u8; w * h * 4];
-
-        buf.chunks_mut(4)
-            .enumerate()
-            .for_each(|(i, px)| {
-                let c = &colors[i];
-                px[0] = c.get_r();
-                px[1] = c.get_g();
-                px[2] = c.get_b();
-                px[3] = c.get_a();
-            });
-
-        buf
-    }
-
-    // ラスタースキャン順のピクセルが，rgbargba...と並ぶbuffer par
     pub fn rgba_buf_from_colors_par(&self, colors: &[Color]) -> Vec<u8> {
-        let (w, h) = self.resolution;
-        assert_eq!(colors.len(), w * h);
-        let mut buf = vec![0u8; w * h * 4];
-
-        buf.par_chunks_mut(4)
-            .enumerate()
-            .for_each(|(i, px)| {
-                let c = &colors[i];
-                px[0] = c.get_r();
-                px[1] = c.get_g();
-                px[2] = c.get_b();
-                px[3] = c.get_a();
-            });
-
-        buf
+        colors
+            .par_iter()
+            .flat_map_iter(|c| c.as_rgba().iter().copied())
+            .collect()
     }
 
-
-    pub fn render_from_colors(&self, colors: &[Color]) -> RgbImage {
-        let (w, h) = self.resolution;
-        let mut buf = vec![0u8; w * h * 3];
-
-        buf.chunks_mut(3)
-            .enumerate()
-            .for_each(|(i, px)| {
-                let c = &colors[i];
-                px[0] = c.get_r();
-                px[1] = c.get_g();
-                px[2] = c.get_b();
-            });
-
-        RgbImage::from_raw(w as u32, h as u32, buf)
-            .expect("The image should be made but it failed.")
+    pub fn rgba_image_from_colors_par(&self, colors: &[Color], image_config: &ImageConfig) -> RgbaImage {
+        let rgba = self.rgba_buf_from_colors_par(colors);
+        RgbaImage::from_raw(image_config.resolution.0 as u32, image_config.resolution.1 as u32, rgba)
+            .expect("RgbImage should be made. size or buf error.")
     }
 
-    pub fn render_from_colors_par(&self, colors: &[Color]) -> RgbImage {
-        let (w, h) = self.resolution;
-        let mut buf = vec![0u8; w * h * 3];
-
-        buf.par_chunks_mut(3)
-            .enumerate()
-            .for_each(|(i, px)| {
-                let c = &colors[i];
-                px[0] = c.get_r();
-                px[1] = c.get_g();
-                px[2] = c.get_b();
-            });
-
-        RgbImage::from_raw(w as u32, h as u32, buf)
-            .expect("The image should be made but it failed.")
+    pub fn u8buf_par(&self, escape_results:  &[EscapeResult]) -> Vec<u8> {
+        let max_iter = self.coloring.normalizer.max_iter();
+        escape_results
+            .par_iter()
+            .map(|e| {
+                let v = (e.iter as f64 / max_iter as f64) * 255.0;
+                v.min(255.0) as u8
+            })
+            .collect()
     }
+}
 
-    pub fn render(&self) -> RgbImage {
-        let (w, h) = self.resolution;
-        let bounds = self.view_bounds();
-        let mut img = RgbImage::new(w as u32, h as u32);
 
-        for (x, y, pixel) in img.enumerate_pixels_mut() {
-            let c = self.pixel_to_complex((x as usize, y as usize), bounds);
-            let escape_value = self.escape.evaluate(&self.dynamics, c);
-            let color = self.coloring.color(escape_value);
-            *pixel = Rgb([color.get_r(), color.get_g(), color.get_b()]);
+/* thread */
+impl<D, E, N, M> EscapeTimeFractal<D, E, N, M>
+where
+    D: Dynamics + Sync + Send,
+    E: EscapeEvaluator<D> + Sync + Send,
+    N: NormalizeEscInfo<EscapeResult> + Sync + Send,
+    M: ColorMap + Sync + Send,
+{
+    pub fn escape_results_interruptible(
+        &self,
+        image_config: &ImageConfig,
+        cancel: &AtomicBool,
+    ) -> Option<Vec<EscapeResult>> {
+        let (w, h) = image_config.resolution;
+        let view_size = image_config.view_size();
+        let view_bounds = image_config.view_bounds(view_size);
+
+        let result: Result<Vec<EscapeResult>, ()> =
+            (0..w * h)
+                .into_iter()
+                .map(|i| {
+                    // キャンセル確認
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(());
+                    }
+
+                    let col = i % w;
+                    let row = i / w;
+                    let xy = image_config.pixel_to_xyplane((col, row), view_bounds);
+                    let p = self.dynamics.param_from_xy(xy);
+
+                    Ok(self.escape_evaluator.evaluate(&self.dynamics, &p))
+                })
+                .collect();
+
+        match result {
+            Ok(v) => Some(v), // ラスタ順が保証された Vec<EscapeResult>
+            Err(()) => None,  // キャンセル
         }
-
-        img
     }
 
-    pub fn render_par(&self) -> RgbImage {
-        let vs = self.escape_values_par();
-        let cs = self.colors_from_values_par(&vs);
-        self.render_from_colors_par(&cs)
-    }
+    pub fn escape_results_par_interruptible(
+        &self,
+        image_config: &ImageConfig,
+        cancel: &AtomicBool,
+    ) -> Option<Vec<EscapeResult>> {
+        let (w, h) = image_config.resolution;
+        let view_size = image_config.view_size();
+        let view_bounds = image_config.view_bounds(view_size);
 
+        let result: Result<Vec<EscapeResult>, ()> =
+            (0..w * h)
+                .into_par_iter()
+                .map(|i| {
+                    // キャンセル確認
+                    if cancel.load(Ordering::Relaxed) {
+                        return Err(());
+                    }
+
+                    let col = i % w;
+                    let row = i / w;
+                    let xy = image_config.pixel_to_xyplane((col, row), view_bounds);
+                    let p = self.dynamics.param_from_xy(xy);
+
+                    Ok(self.escape_evaluator.evaluate(&self.dynamics, &p))
+                })
+                .collect();
+
+        match result {
+            Ok(v) => Some(v), // ラスタ順が保証された Vec<EscapeResult>
+            Err(()) => None,  // キャンセル
+        }
+    }
 }

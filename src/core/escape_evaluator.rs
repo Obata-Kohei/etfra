@@ -1,12 +1,22 @@
-use num_complex::{self, Complex};
-use crate::core::complex_dynamics::ComplexDynamics;
-use crate::util::types::Float;
+use crate::prelude::*;
 
-pub trait EscapeEvaluator<D: ComplexDynamics> {
-    type Output: Copy;
+pub trait EscapeEvaluator<D: Dynamics> {
     fn evaluate(
         &self,
         dynamics: &D,
-        c: Complex<Float>,
-    ) -> Self::Output;
+        p: &D::Param,
+    ) -> EscapeResult;
+}
+
+#[derive(Debug, Default)]
+pub struct EscapeResult {
+    pub escaped: bool,
+    pub iter: usize,
+    //pub nu: Float,  // smooth coloring
+}
+
+impl EscapeResult {
+    pub fn new(escaped: bool, iter: usize) -> Self {
+        Self {escaped, iter}
+    }
 }

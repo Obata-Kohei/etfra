@@ -1,25 +1,25 @@
-use num::Complex;
-use crate::{app::ui_render::RenderEngine, prelude::*};
+use std::sync::{
+    Arc,
+    atomic::AtomicBool,
+};
+use crate::prelude::*;
+use num_traits::FromPrimitive;
+use crate::app::ui_render::RenderEngine;
 
 pub struct AppState {
     pub img_cfg: ImageConfig,
     pub mode: RenderMode,
+    pub is_computing: bool,
     pub recomp: bool,  // 再計算の必要があるか
     pub buf_dirty: bool,  // バッファが更新されたが表示が更新されていないときにtrue
+    pub cancel_flag: Option<Arc<AtomicBool>>,  // 別スレッドでの計算処理の停止
     pub move_ratio: Float,
     pub zoom_ratio: Float,
     pub history: History,
 
-    pub engine: Box<dyn RenderEngine>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
+    pub engine: Option<Box<dyn RenderEngine>>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
 
     pub rgba_buf: Option<Vec<u8>>,
-}
-
-#[derive(Debug, Clone)]
-pub struct ImageConfig {
-    pub resolution: (usize, usize),
-    pub center: Complex<Float>,
-    pub scale: Float
 }
 
 #[derive(Debug)]
@@ -31,8 +31,8 @@ pub enum RenderMode {
 impl RenderMode {
     pub fn resolusion(&self) -> (usize, usize) {
         match self {
-            RenderMode::Survey => (64, 64),
-            RenderMode::Burst => (1024, 1024),
+            RenderMode::Survey => (128, 128),
+            RenderMode::Burst => (512, 512),
         }
     }
     //pub fn config_resolusion(mode: RenderMode, reso: (usize, usize)) {}
@@ -47,97 +47,99 @@ impl AppState {
     pub fn new(
         img_cfg: ImageConfig,
         mode: RenderMode,
+        is_computing: bool,
         recomp: bool,
         buf_dirty: bool,
+        cancel_flag: Option<Arc<AtomicBool>>,
         move_ratio: Float,
         zoom_ratio: Float,
         history: History,
 
-        engine: Box<dyn RenderEngine>,
+        engine: Option<Box<dyn RenderEngine>>,
 
         rgba_buf: Option<Vec<u8>>,
     ) -> Self {
-        Self {img_cfg, mode, recomp, buf_dirty, move_ratio, zoom_ratio, history, engine, rgba_buf}
+        Self {img_cfg, mode, is_computing, recomp, buf_dirty, cancel_flag, move_ratio, zoom_ratio, history, engine, rgba_buf}
     }
 
     pub fn with_preset_values() -> Self {
-        let resolution = RenderMode::Survey.resolusion();
-        let center = Complex::new(-0.5, 0.0);
-        let view_size = (3., 3.); //(resolution.0 as Float * scale, resolution.1 as Float * scale);
-        let scale = view_size.0 / resolution.0 as Float;
-        let img_cfg = ImageConfig {resolution, center, scale};
         let mode = RenderMode::Survey;
-        let max_iter = 300;
+        let resolution = mode.resolusion();
+        let view_size = (3.0, 3.0);
+        let w = Float::from_usize(resolution.0).expect("Float should be converted from usize");
+        let h = Float::from_usize(resolution.1).expect("Float should be converted from usize");
+        let scale = (view_size.0 / w, view_size.1 / h);
+        let center = (-0.5, 0.0);
+        let img_cfg = ImageConfig::new(
+            resolution,
+            scale,
+            center,
+        );
+        let is_computing = false;
+        let recomp = true;
+        let buf_dirty = true;
+        let cancel_flag = None;
         let move_ratio = 0.1;
         let zoom_ratio = 0.5;
+        let history = History { stack: Vec::new() };
+
         let dynamics = Mandelbrot::new();
+
+        let max_iter = 300;
         let escape_radius = 2.0;
-        let escape = EscapeByCount::new(max_iter, escape_radius);
+        let escape_condition = EscapeByNorm {escape_radius};
+        let escape_evaluator = EscapeByCount {max_iter, condition: escape_condition};
+
         let palette = Palette::grayscale(256);
-        let coloring = PaletteColoring::new(palette, max_iter);
+        let normalizer = NormalizeWithMaxIter {max_iter};
+        let color_map = ColorMapLinear {palette};
+        let coloring = Coloring {normalizer, color_map};
+
+        let etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
 
         Self {
             img_cfg,
             mode,
-            recomp: true,
-            buf_dirty: true,
+            is_computing,
+            recomp,
+            buf_dirty,
+            cancel_flag,
             move_ratio,
             zoom_ratio,
-            history: History { stack: Vec::new() },
-            engine: Box::new(
-                EscapeTimeFractal::new(
-                    dynamics,
-                    escape,
-                    coloring,
-                    resolution,
-                    center,
-                    view_size
-                )
-            ),
+            history,
+            engine: Some(Box::new(etf)),
             rgba_buf: None,
         }
     }
 
-    pub fn compute_if_needed(&mut self) {
-        if self.recomp {
-            let buf = self.engine.compute(&self.img_cfg);
-            self.rgba_buf = Some(buf);
-            self.recomp = false;
-            self.buf_dirty = true;
-        }
-    }
-
-    pub fn compute_if_needed_par(&mut self) {
-        if self.recomp {
-            let buf = self.engine.compute_par(&self.img_cfg);
-            self.rgba_buf = Some(buf);
-            self.recomp = false;
-            self.buf_dirty = true;
-        }
-    }
-
     pub fn move_left(&mut self) {
-        self.img_cfg.center.re -= (self.img_cfg.scale * self.img_cfg.resolution.0 as Float) * self.move_ratio;
+        let w = Float::from_usize(self.get_resolution().0).expect("Float should be converted from usize");
+        self.img_cfg.center.0 -= (self.img_cfg.scale.0 * w) * self.move_ratio;
     }
 
     pub fn move_right(&mut self) {
-        self.img_cfg.center.re += (self.img_cfg.scale * self.img_cfg.resolution.0 as Float) * self.move_ratio;
+        let w = Float::from_usize(self.get_resolution().0).expect("Float should be converted from usize");
+        self.img_cfg.center.0 += (self.img_cfg.scale.0 * w) * self.move_ratio;
     }
 
     pub fn move_up(&mut self) {
-        self.img_cfg.center.im += (self.img_cfg.scale * self.img_cfg.resolution.1 as Float) * self.move_ratio;
+        let h = Float::from_usize(self.get_resolution().1).expect("Float should be converted from usize");
+        self.img_cfg.center.1 += (self.img_cfg.scale.1 * h) * self.move_ratio;
     }
 
     pub fn move_down(&mut self) {
-        self.img_cfg.center.im -= (self.img_cfg.scale * self.img_cfg.resolution.1 as Float) * self.move_ratio;
+        let h = Float::from_usize(self.get_resolution().1).expect("Float should be converted from usize");
+        self.img_cfg.center.1 -= (self.img_cfg.scale.1 * h) * self.move_ratio;
     }
 
     pub fn zoom_in(&mut self) {
-        self.img_cfg.scale *= self.zoom_ratio;
+        self.img_cfg.scale.0 *= self.zoom_ratio;
+        self.img_cfg.scale.1 *= self.zoom_ratio;
     }
 
     pub fn zoom_out(&mut self) {
-        self.img_cfg.scale /= self.zoom_ratio;
+        self.img_cfg.scale.0 /= self.zoom_ratio;
+        self.img_cfg.scale.1 /= self.zoom_ratio;
     }
 
     pub fn get_resolution(&self) -> (usize, usize) {
@@ -149,8 +151,16 @@ impl AppState {
     }
 
     pub fn set_mode(&mut self, mode: RenderMode) {
+        let view_size = self.img_cfg.view_size();
+
+
         self.mode = mode;
         self.img_cfg.resolution = self.mode.resolusion();
+
+        let w = Float::from_usize(self.mode.resolusion().0).expect("Float should be converted from usize.");
+        let h = Float::from_usize(self.mode.resolusion().1).expect("Float should be converted from usize.");
+        self.img_cfg.scale.0 = view_size.0 / w;
+        self.img_cfg.scale.1 = view_size.1 / h;
     }
 
     pub fn set_recomp(&mut self, recomp: bool) {

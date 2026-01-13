@@ -1,32 +1,36 @@
-use num_complex::{self, Complex};
 use crate::prelude::*;
 
 #[derive(Debug)]
-pub struct EscapeByCount {
-    max_iter: usize,
-    escape_radius: Float,
+pub struct EscapeByCount<C> {
+    pub max_iter: usize,
+    pub condition: C,
 }
 
-impl EscapeByCount {
-    pub fn new(max_iter: usize, escape_radius: Float) -> Self {
-        Self { max_iter, escape_radius }
-    }
-}
-
-impl<D: ComplexDynamics> EscapeEvaluator<D> for EscapeByCount {
-    type Output = usize;
-
-    fn evaluate(&self, dynamics: &D, c: Complex<Float>) -> usize {
-        let escape_radius_sqr = self.escape_radius * self.escape_radius;
-        let mut z = dynamics.initial_z(c);
+impl<D, C> EscapeEvaluator<D> for EscapeByCount<C>
+where
+    D: Dynamics,
+    C: EscapeCondition<D::State>,
+{
+    fn evaluate(&self, dynamics: &D, p: &D::Param) -> EscapeResult {
+        let mut state = dynamics.initial_state(p);
 
         for i in 1..=self.max_iter {
-            z = dynamics.step(z, c);
-            if z.norm_sqr() > escape_radius_sqr {
-                return i;
+            state = dynamics.step(&state, p);
+
+            if self.condition.escaped(&state) {
+                return EscapeResult {
+                    escaped: true,
+                    iter: i,
+                    //last_state: Some(state),
+                };
             }
         }
 
-        self.max_iter
+        EscapeResult {
+            escaped: false,
+            iter: self.max_iter,
+            //last_state: None,
+        }
     }
 }
+

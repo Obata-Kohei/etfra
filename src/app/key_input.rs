@@ -1,4 +1,5 @@
 use eframe::egui;
+use std::sync::atomic::Ordering;
 use crate::app::state::AppState;
 use crate::app::state::RenderMode;
 
@@ -6,28 +7,27 @@ pub fn handle_key_input(
     ctx: &egui::Context,
     state: &mut AppState,
 ) {
-
     ctx.input(|i| {
         // wasd: 平行移動
-        if i.key_pressed(egui::Key::W) {
+        if i.key_pressed(egui::Key::W) || i.key_pressed(egui::Key::ArrowUp) {
             state.push_history();
             state.move_up();
             state.set_recomp(true);
             state.set_buf_dirty(true);
         }
-        if i.key_pressed(egui::Key::A) {
+        if i.key_pressed(egui::Key::A) || i.key_pressed(egui::Key::ArrowLeft) {
             state.push_history();
             state.move_left();
             state.set_recomp(true);
             state.set_buf_dirty(true);
         }
-        if i.key_pressed(egui::Key::S) {
+        if i.key_pressed(egui::Key::S) || i.key_pressed(egui::Key::ArrowDown) {
             state.push_history();
             state.move_down();
             state.set_recomp(true);
             state.set_buf_dirty(true);
         }
-        if i.key_pressed(egui::Key::D) {
+        if i.key_pressed(egui::Key::D) || i.key_pressed(egui::Key::ArrowRight) {
             state.push_history();
             state.move_right();
             state.set_recomp(true);
@@ -75,6 +75,14 @@ pub fn handle_key_input(
             state.set_mode(RenderMode::Burst);
             state.set_recomp(true);
             state.set_buf_dirty(true);
+        }
+
+        // p: 計算処理の停止
+        if i.key_pressed(egui::Key::P) {
+            if let Some(flag) = &state.cancel_flag {
+                flag.store(true, Ordering::Relaxed);
+                state.undo();
+            }
         }
     });
 }

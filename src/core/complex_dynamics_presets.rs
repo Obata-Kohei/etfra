@@ -10,14 +10,24 @@ impl Mandelbrot {
     }
 }
 
-impl ComplexDynamics for Mandelbrot {
-    fn initial_z(&self, _c: Complex<Float>) -> Complex<Float> {
+impl Dynamics for Mandelbrot {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
         Complex::ZERO
     }
-    fn step(&self, z: Complex<Float>, c: Complex<Float>) -> Complex<Float> {
-        z * z + c
+
+    fn step(&self, x: &Self::State, p: &Self::Param) -> Self::State {
+        x * x + p
     }
 }
+
+impl ComplexDynamics for Mandelbrot {}
 
 
 #[derive(Debug)]
@@ -31,17 +41,27 @@ impl Julia {
     }
 }
 
-impl ComplexDynamics for Julia {
-    fn initial_z(&self, z: Complex<Float>) -> Complex<Float> {
-        z
+impl Dynamics for Julia {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
     }
 
-    fn step(&self, z: Complex<Float>, _: Complex<Float>) -> Complex<Float> {
+    fn initial_state(&self, p: &Self::Param) -> Self::State {
+        *p
+    }
+
+    fn step(&self, z: &Self::State, _p: &Self::Param) -> Self::State {
         z * z + self.c
     }
 }
 
+impl ComplexDynamics for Julia {}
 
+
+#[derive(Debug)]
 pub struct BurningShip;
 
 impl BurningShip {
@@ -50,12 +70,20 @@ impl BurningShip {
     }
 }
 
-impl ComplexDynamics for BurningShip {
-    fn initial_z(&self, _c: Complex<Float>) -> Complex<Float> {
+impl Dynamics for BurningShip {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) ->Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
         Complex::ZERO
     }
-    fn step(&self, z: Complex<Float>, c: Complex<Float>) -> Complex<Float> {
-        let z = Complex::new(z.re.abs(), z.im.abs());
+
+    fn step(&self, z: &Self::State, c: &Self::Param) -> Self::State {
+        let z = Complex::new(z.re.abs(),  z.im.abs());
         z * z + c
     }
 }

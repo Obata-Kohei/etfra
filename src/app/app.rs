@@ -1,11 +1,21 @@
+use std::sync::{
+    Arc,
+    atomic::AtomicBool,
+};
+use std::sync::mpsc::Receiver;
+//use std::sync::atomic::Ordering;
+use std::thread::JoinHandle;
 use eframe::egui;
-use egui::Image;
 
-use crate::app::{key_input::handle_key_input, state::AppState};
+use crate::app::{key_input::handle_key_input, state::AppState, ui_render::{self, RenderEngine}};
+use crate::prelude::*;
 
 pub struct App {
     pub state: AppState,
     pub texture: Option<egui::TextureHandle>,
+
+    compute_handle: Option<JoinHandle<()>>,
+    result_rx: Option<Receiver<(Box<dyn RenderEngine>, ImageConfig, Option<Vec<u8>>)>>,
 }
 
 impl App {
@@ -13,6 +23,8 @@ impl App {
         Self {
             state: AppState::with_preset_values(),
             texture: None,
+            compute_handle: None,
+            result_rx: None,
         }
     }
 }
@@ -20,67 +32,109 @@ impl App {
 impl eframe::App for App {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         handle_key_input(ctx, &mut self.state);
-        self.state.compute_if_needed_par();
 
-        if self.state.buf_dirty {
-            if let Some(buf) = &self.state.rgba_buf {
-                let (w, h) = self.state.get_resolution();
+        if self.state.is_computing {
+            ctx.request_repaint();
+        }
 
-                /*
-                let w = 256;
-                let h = 256;
-                let mut buf = vec![0u8; w * h * 4];
-                for i in 0..(w * h) {
-                    buf[4*i + 0] = 255; // R
-                    buf[4*i + 1] = 0;   // G
-                    buf[4*i + 2] = 0;   // B
-                    buf[4*i + 3] = 255; // A
-                }
-                */
-
-                let img = egui::ColorImage::from_rgba_unmultiplied([w, h], &buf);
-                self.texture = Some(ctx.load_texture(
-                    "rendered_image",
-                    img,
-                    egui::TextureOptions {
-                        magnification: egui::TextureFilter::Nearest,
-                        minification: egui::TextureFilter::Nearest,
-                        ..Default::default()
-                    },
-                ));
-                self.state.buf_dirty = false;
+        // 再計算要求が来たが、すでに計算中 -> キャンセル
+        if self.state.recomp && self.compute_handle.is_some() {
+            if let Some(cancel) = &self.state.cancel_flag {
+                cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             }
         }
 
-        egui::SidePanel::left("side_panel").show(ctx, |ui| {
-            ui.heading("State");
+        // 新規計算開始
+        if self.state.recomp && self.compute_handle.is_none() {
+            self.start_compute_thread();
+        }
 
-            let (w, h) = self.state.img_cfg.resolution;
-            ui.label(format!("resolution: {}x{}", w, h));
-            ui.label(format!("center: {}", self.state.img_cfg.center));
-            ui.label(format!("scale: {}", self.state.img_cfg.scale));
+        self.poll_compute_result();
+        self.update_texture(ctx);
 
-            ui.label(format!("mode: {:?}", self.state.mode));
-            ui.label(format!("recomp: {}", self.state.recomp));
-            ui.label(format!("buf_dirty: {}", self.state.buf_dirty));
-
-            ui.label(format!("history length: {}", self.state.history.stack.len()));
-        });
-
-        egui::CentralPanel::default().show(ctx, |ui| {
-            //ui.label("Hello egui");
-            //ui.button("Button");
-
-            let display_size = ui.available_size();
-
-            if let Some(tex) = &self.texture {
-                //let size = tex.size_vec2();
-                ui.add(
-                    Image::new(tex)
-                    .fit_to_exact_size(display_size)
-                );
-            }
-        });
-
+        ui_render::show_side_panel(ctx, &mut self.state);
+        ui_render::show_central_panel(ctx, &self.texture);
     }
+}
+
+
+impl App {
+    fn start_compute_thread(&mut self) {
+        use std::sync::mpsc;
+
+        let (tx, rx) = mpsc::channel();
+
+        let img_cfg = self.state.img_cfg.clone();
+        let mut engine = self.state.engine.take().expect("engine must exist");
+
+        let cancel = Arc::new(AtomicBool::new(false));
+        let cancel_child = cancel.clone();
+
+        self.state.is_computing = true;
+        self.state.recomp = false;
+
+        self.compute_handle = Some(std::thread::spawn(move || {
+            let result = engine.compute_par(&img_cfg, &cancel_child);
+            let _ = tx.send((engine, img_cfg, result));
+        }));
+
+        self.state.cancel_flag = Some(cancel);
+        self.result_rx = Some(rx);
+    }
+
+
+    fn poll_compute_result(&mut self) {
+        let Some(rx) = &self.result_rx else { return };
+
+        if let Ok((engine, img_cfg, result)) = rx.try_recv() {
+            self.state.engine = Some(engine);
+
+            match result {
+                Some(buf) => {
+                    self.state.img_cfg = img_cfg;
+                    self.state.rgba_buf = Some(buf);
+                    self.state.buf_dirty = true;
+                }
+                None => {
+                    self.state.rgba_buf = None;
+                    self.state.buf_dirty = false;
+                }
+            }
+
+            self.state.is_computing = false;
+            self.compute_handle = None;
+            self.result_rx = None;
+            self.state.cancel_flag = None;
+
+        }
+    }
+
+    fn update_texture(&mut self, ctx: &egui::Context) {
+        if !self.state.buf_dirty {
+            return;
+        }
+
+        let Some(buf) = &self.state.rgba_buf else {
+            self.state.buf_dirty = false;
+            return;
+        };
+
+        let (w, h) = self.state.img_cfg.resolution;
+        let expected = w * h * 4;
+
+        if buf.len() != expected {
+            // 状態不整合の保険
+            self.state.buf_dirty = false;
+            return;
+        }
+
+        let img = egui::ColorImage::from_rgba_unmultiplied([w, h], buf);
+        self.texture = Some(ctx.load_texture(
+            "rendered_image",
+            img,
+            egui::TextureOptions::NEAREST,
+        ));
+        self.state.buf_dirty = false;
+    }    
+
 }

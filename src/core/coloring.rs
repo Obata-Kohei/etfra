@@ -1,7 +1,25 @@
-use crate::util::color::Color;
+use crate::prelude::*;
 
-pub trait Coloring<T>
-where T: Copy
+pub struct Coloring<N, M> {
+    pub normalizer: N,
+    pub color_map: M,
+}
+
+impl<N, M> Coloring<N, M>
+where
+    N: NormalizeEscInfo<EscapeResult>,
+    M: ColorMap,
 {
-    fn color(&self, value: T) -> Color;
+    pub fn apply(&self, esc_res: &EscapeResult) -> Color {
+        let t = self.normalizer.normalize(esc_res);
+        self.color_map.map(t)
+    }
+
+    pub fn normalizer(&self) -> &N {
+        &self.normalizer
+    }
+
+    pub fn color_map(&self) -> &M {
+        &self.color_map
+    }
 }
