@@ -1,3 +1,7 @@
+use std::sync::{
+    Arc,
+    atomic::AtomicBool,
+};
 use crate::prelude::*;
 use num_traits::FromPrimitive;
 use crate::app::ui_render::RenderEngine;
@@ -8,6 +12,7 @@ pub struct AppState {
     pub is_computing: bool,
     pub recomp: bool,  // 再計算の必要があるか
     pub buf_dirty: bool,  // バッファが更新されたが表示が更新されていないときにtrue
+    pub cancel_flag: Option<Arc<AtomicBool>>,  // 別スレッドでの計算処理の停止
     pub move_ratio: Float,
     pub zoom_ratio: Float,
     pub history: History,
@@ -26,7 +31,7 @@ pub enum RenderMode {
 impl RenderMode {
     pub fn resolusion(&self) -> (usize, usize) {
         match self {
-            RenderMode::Survey => (64, 64),
+            RenderMode::Survey => (128, 128),
             RenderMode::Burst => (512, 512),
         }
     }
@@ -45,6 +50,7 @@ impl AppState {
         is_computing: bool,
         recomp: bool,
         buf_dirty: bool,
+        cancel_flag: Option<Arc<AtomicBool>>,
         move_ratio: Float,
         zoom_ratio: Float,
         history: History,
@@ -53,7 +59,7 @@ impl AppState {
 
         rgba_buf: Option<Vec<u8>>,
     ) -> Self {
-        Self {img_cfg, mode, is_computing, recomp, buf_dirty, move_ratio, zoom_ratio, history, engine, rgba_buf}
+        Self {img_cfg, mode, is_computing, recomp, buf_dirty, cancel_flag, move_ratio, zoom_ratio, history, engine, rgba_buf}
     }
 
     pub fn with_preset_values() -> Self {
@@ -72,6 +78,7 @@ impl AppState {
         let is_computing = false;
         let recomp = true;
         let buf_dirty = true;
+        let cancel_flag = None;
         let move_ratio = 0.1;
         let zoom_ratio = 0.5;
         let history = History { stack: Vec::new() };
@@ -96,6 +103,7 @@ impl AppState {
             is_computing,
             recomp,
             buf_dirty,
+            cancel_flag,
             move_ratio,
             zoom_ratio,
             history,
