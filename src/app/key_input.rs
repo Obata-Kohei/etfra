@@ -1,12 +1,9 @@
-use eframe::egui;
-use std::sync::atomic::Ordering;
 use crate::app::state::AppState;
 use crate::app::state::RenderMode;
+use eframe::egui;
+use std::sync::atomic::Ordering;
 
-pub fn handle_key_input(
-    ctx: &egui::Context,
-    state: &mut AppState,
-) {
+pub fn handle_key_input(ctx: &egui::Context, state: &mut AppState) {
     ctx.input(|i| {
         // wasd: 平行移動
         if i.key_pressed(egui::Key::W) || i.key_pressed(egui::Key::ArrowUp) {

@@ -1,5 +1,5 @@
 use num_traits::FromPrimitive;
-use std::ops::{Add, Sub, Mul, Div};
+use std::ops::{Add, Div, Mul, Sub};
 
 pub type Float = f64;
 

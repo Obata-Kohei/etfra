@@ -1,17 +1,14 @@
-
 pub use crate::{
-    util::{
-        color::Color,
-        palette::Palette,
-        image_config::ImageConfig,
-        types::*,
-    },
-
+    app::app::*,
     core::{
-        dynamics::Dynamics,
+        color_map::ColorMap,
+        color_map_presets::*,
 
+        coloring::Coloring,
         complex_dynamics::ComplexDynamics,
         complex_dynamics_presets::*,
+
+        dynamics::Dynamics,
 
         escape_condition::EscapeCondition,
         escape_condition_presets::*,
@@ -19,19 +16,10 @@ pub use crate::{
         escape_evaluator::*,
         escape_evaluator_presets::*,
 
+        //coloring_presets::*,
+        escape_time_fractal::EscapeTimeFractal,
         normalize_esc_info::NormalizeEscInfo,
         normalize_esc_info_presets::*,
-
-        color_map::ColorMap,
-        color_map_presets::*,
-
-        coloring::Coloring,
-        //coloring_presets::*,
-
-        escape_time_fractal::EscapeTimeFractal,
     },
-
-    app::{
-        app::*,
-    }
+    util::{color::Color, image_config::ImageConfig, palette::Palette, types::*},
 };

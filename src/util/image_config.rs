@@ -2,17 +2,13 @@ use crate::prelude::*;
 
 #[derive(Debug, Clone)]
 pub struct ImageConfig {
-    pub resolution: (usize, usize),   // (w, h)
-    pub scale: (Float, Float),  // 1 pxあたりの座標平面の長さ．(x, y). F: Float?
-    pub center: (Float, Float),  // 描画の中心となる座標平面上の座標. Complexや(f64, f64)?
+    pub resolution: (usize, usize), // (w, h)
+    pub scale: (Float, Float),      // 1 pxあたりの座標平面の長さ．(x, y). F: Float?
+    pub center: (Float, Float),     // 描画の中心となる座標平面上の座標. Complexや(f64, f64)?
 }
 
 impl ImageConfig {
-    pub fn new(
-        resolution: (usize, usize),
-        scale: (Float, Float),
-        center: (Float, Float),
-    ) -> Self {
+    pub fn new(resolution: (usize, usize), scale: (Float, Float), center: (Float, Float)) -> Self {
         Self {
             resolution,
             scale,
@@ -38,7 +34,9 @@ impl ImageConfig {
     }
 
     pub fn pixel_to_xyplane(
-        &self, point: (usize, usize), view_bouds: (Float, Float, Float, Float)
+        &self,
+        point: (usize, usize),
+        view_bouds: (Float, Float, Float, Float),
     ) -> (Float, Float) {
         let (x, y) = point;
         let (xmin, xmax, ymin, ymax) = view_bouds;

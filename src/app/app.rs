@@ -1,13 +1,14 @@
-use std::sync::{
-    Arc,
-    atomic::AtomicBool,
-};
 use std::sync::mpsc::Receiver;
+use std::sync::{atomic::AtomicBool, Arc};
 //use std::sync::atomic::Ordering;
-use std::thread::JoinHandle;
 use eframe::egui;
+use std::thread::JoinHandle;
 
-use crate::app::{key_input::handle_key_input, state::AppState, ui_render::{self, RenderEngine}};
+use crate::app::{
+    key_input::handle_key_input,
+    state::AppState,
+    ui_render::{self, RenderEngine},
+};
 use crate::prelude::*;
 
 pub struct App {
@@ -57,7 +58,6 @@ impl eframe::App for App {
     }
 }
 
-
 impl App {
     fn start_compute_thread(&mut self) {
         use std::sync::mpsc;
@@ -82,7 +82,6 @@ impl App {
         self.result_rx = Some(rx);
     }
 
-
     fn poll_compute_result(&mut self) {
         let Some(rx) = &self.result_rx else { return };
 
@@ -105,7 +104,6 @@ impl App {
             self.compute_handle = None;
             self.result_rx = None;
             self.state.cancel_flag = None;
-
         }
     }
 
@@ -129,12 +127,7 @@ impl App {
         }
 
         let img = egui::ColorImage::from_rgba_unmultiplied([w, h], buf);
-        self.texture = Some(ctx.load_texture(
-            "rendered_image",
-            img,
-            egui::TextureOptions::NEAREST,
-        ));
+        self.texture = Some(ctx.load_texture("rendered_image", img, egui::TextureOptions::NEAREST));
         self.state.buf_dirty = false;
-    }    
-
+    }
 }

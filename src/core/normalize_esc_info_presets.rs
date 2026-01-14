@@ -2,7 +2,7 @@ use crate::prelude::*;
 
 #[derive(Debug)]
 pub struct NormalizeWithMaxIter {
-    pub max_iter: usize
+    pub max_iter: usize,
 }
 
 impl NormalizeEscInfo<EscapeResult> for NormalizeWithMaxIter {
@@ -16,7 +16,6 @@ impl NormalizeEscInfo<EscapeResult> for NormalizeWithMaxIter {
         esc_res.iter as f64 / self.max_iter as f64
     }
 }
-
 
 #[derive(Debug)]
 pub struct NormalizeWithHistgram {

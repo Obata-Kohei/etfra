@@ -1,23 +1,20 @@
-use std::sync::{
-    Arc,
-    atomic::AtomicBool,
-};
+use crate::app::ui_render::RenderEngine;
 use crate::prelude::*;
 use num_traits::FromPrimitive;
-use crate::app::ui_render::RenderEngine;
+use std::sync::{atomic::AtomicBool, Arc};
 
 pub struct AppState {
     pub img_cfg: ImageConfig,
     pub mode: RenderMode,
     pub is_computing: bool,
-    pub recomp: bool,  // 再計算の必要があるか
-    pub buf_dirty: bool,  // バッファが更新されたが表示が更新されていないときにtrue
-    pub cancel_flag: Option<Arc<AtomicBool>>,  // 別スレッドでの計算処理の停止
+    pub recomp: bool,                         // 再計算の必要があるか
+    pub buf_dirty: bool, // バッファが更新されたが表示が更新されていないときにtrue
+    pub cancel_flag: Option<Arc<AtomicBool>>, // 別スレッドでの計算処理の停止
     pub move_ratio: Float,
     pub zoom_ratio: Float,
     pub history: History,
 
-    pub engine: Option<Box<dyn RenderEngine>>,  // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
+    pub engine: Option<Box<dyn RenderEngine>>, // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
 
     pub rgba_buf: Option<Vec<u8>>,
 }
@@ -59,7 +56,19 @@ impl AppState {
 
         rgba_buf: Option<Vec<u8>>,
     ) -> Self {
-        Self {img_cfg, mode, is_computing, recomp, buf_dirty, cancel_flag, move_ratio, zoom_ratio, history, engine, rgba_buf}
+        Self {
+            img_cfg,
+            mode,
+            is_computing,
+            recomp,
+            buf_dirty,
+            cancel_flag,
+            move_ratio,
+            zoom_ratio,
+            history,
+            engine,
+            rgba_buf,
+        }
     }
 
     pub fn with_preset_values() -> Self {
@@ -70,11 +79,7 @@ impl AppState {
         let h = Float::from_usize(resolution.1).expect("Float should be converted from usize");
         let scale = (view_size.0 / w, view_size.1 / h);
         let center = (-0.5, 0.0);
-        let img_cfg = ImageConfig::new(
-            resolution,
-            scale,
-            center,
-        );
+        let img_cfg = ImageConfig::new(resolution, scale, center);
         let is_computing = false;
         let recomp = true;
         let buf_dirty = true;
@@ -87,13 +92,19 @@ impl AppState {
 
         let max_iter = 300;
         let escape_radius = 2.0;
-        let escape_condition = EscapeByNorm {escape_radius};
-        let escape_evaluator = EscapeByCount {max_iter, condition: escape_condition};
+        let escape_condition = EscapeByNorm { escape_radius };
+        let escape_evaluator = EscapeByCount {
+            max_iter,
+            condition: escape_condition,
+        };
 
         let palette = Palette::grayscale(256);
-        let normalizer = NormalizeWithMaxIter {max_iter};
-        let color_map = ColorMapLinear {palette};
-        let coloring = Coloring {normalizer, color_map};
+        let normalizer = NormalizeWithMaxIter { max_iter };
+        let color_map = ColorMapLinear { palette };
+        let coloring = Coloring {
+            normalizer,
+            color_map,
+        };
 
         let etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
 
@@ -113,22 +124,26 @@ impl AppState {
     }
 
     pub fn move_left(&mut self) {
-        let w = Float::from_usize(self.get_resolution().0).expect("Float should be converted from usize");
+        let w = Float::from_usize(self.get_resolution().0)
+            .expect("Float should be converted from usize");
         self.img_cfg.center.0 -= (self.img_cfg.scale.0 * w) * self.move_ratio;
     }
 
     pub fn move_right(&mut self) {
-        let w = Float::from_usize(self.get_resolution().0).expect("Float should be converted from usize");
+        let w = Float::from_usize(self.get_resolution().0)
+            .expect("Float should be converted from usize");
         self.img_cfg.center.0 += (self.img_cfg.scale.0 * w) * self.move_ratio;
     }
 
     pub fn move_up(&mut self) {
-        let h = Float::from_usize(self.get_resolution().1).expect("Float should be converted from usize");
+        let h = Float::from_usize(self.get_resolution().1)
+            .expect("Float should be converted from usize");
         self.img_cfg.center.1 += (self.img_cfg.scale.1 * h) * self.move_ratio;
     }
 
     pub fn move_down(&mut self) {
-        let h = Float::from_usize(self.get_resolution().1).expect("Float should be converted from usize");
+        let h = Float::from_usize(self.get_resolution().1)
+            .expect("Float should be converted from usize");
         self.img_cfg.center.1 -= (self.img_cfg.scale.1 * h) * self.move_ratio;
     }
 
@@ -153,12 +168,13 @@ impl AppState {
     pub fn set_mode(&mut self, mode: RenderMode) {
         let view_size = self.img_cfg.view_size();
 
-
         self.mode = mode;
         self.img_cfg.resolution = self.mode.resolusion();
 
-        let w = Float::from_usize(self.mode.resolusion().0).expect("Float should be converted from usize.");
-        let h = Float::from_usize(self.mode.resolusion().1).expect("Float should be converted from usize.");
+        let w = Float::from_usize(self.mode.resolusion().0)
+            .expect("Float should be converted from usize.");
+        let h = Float::from_usize(self.mode.resolusion().1)
+            .expect("Float should be converted from usize.");
         self.img_cfg.scale.0 = view_size.0 / w;
         self.img_cfg.scale.1 = view_size.1 / h;
     }
@@ -192,7 +208,7 @@ impl AppState {
 }
 
 /*
-resolusion: 画像の縦横pixel数 [px] 
+resolusion: 画像の縦横pixel数 [px]
 center: 中心の複素数座標 [complex]
 scale: 複素数平面の長さ/1pixel [complex_length/px]
 

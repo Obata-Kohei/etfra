@@ -1,7 +1,7 @@
 use crate::util::color::Color;
 
 #[derive(Debug)]
-pub struct Palette (Vec<Color>);
+pub struct Palette(Vec<Color>);
 
 impl Palette {
     // constructor
@@ -35,7 +35,7 @@ impl Palette {
 
         if n == 1 {
             pal.0.push(f(0.0));
-            return  pal;
+            return pal;
         }
 
         for i in 0..n {
@@ -82,16 +82,12 @@ impl Palette {
 
     // HSBのsaturationを元にグラデーションする
     pub fn gradation_by_saturation(n: usize, h: f32, s_min: f32, s_max: f32, b: f32) -> Palette {
-        Palette::abst_gradation(n, |t| {
-            Color::from_hsb(h, s_min + (s_max - s_min) * t, b)
-        })
+        Palette::abst_gradation(n, |t| Color::from_hsb(h, s_min + (s_max - s_min) * t, b))
     }
 
     // HSBのbrightnessを元にグラデーションする
     pub fn gradation_by_brightness(n: usize, h: f32, s: f32, b_min: f32, b_max: f32) -> Palette {
-        Palette::abst_gradation(n, |t| {
-            Color::from_hsb(h, s, b_min + (b_max - b_min) * t)
-        })
+        Palette::abst_gradation(n, |t| Color::from_hsb(h, s, b_min + (b_max - b_min) * t))
     }
 
     // 要素数
@@ -142,12 +138,7 @@ impl Palette {
     pub fn with_gamma(&self, gamma: f32) -> Self {
         assert!(gamma > 0.0);
 
-        Palette(
-            self.0
-                .iter()
-                .map(|c| c.with_gamma(gamma))
-                .collect(),
-        )
+        Palette(self.0.iter().map(|c| c.with_gamma(gamma)).collect())
     }
 
     // ガンマ補正．破壊的
@@ -159,7 +150,6 @@ impl Palette {
         }
     }
 }
-
 
 // for c in &paletteみたいに書くためのTrait
 impl<'a> IntoIterator for &'a Palette {
@@ -177,4 +167,3 @@ impl From<Vec<Color>> for Palette {
         Self(v)
     }
 }
-

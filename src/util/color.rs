@@ -96,23 +96,39 @@ impl Color {
 
     pub const BLACK: Color = Color([0, 0, 0, 255]);
     pub const WHITE: Color = Color([255, 255, 255, 255]);
-    pub const RED:   Color = Color([255, 0, 0, 255]);
+    pub const RED: Color = Color([255, 0, 0, 255]);
     pub const GREEN: Color = Color([0, 255, 0, 255]);
-    pub const BLUE:  Color = Color([0, 0, 255, 255]);
+    pub const BLUE: Color = Color([0, 0, 255, 255]);
 
     /* ===== getters ===== */
 
-    pub fn get_r(&self) -> u8 { self.0[Self::R] }
-    pub fn get_g(&self) -> u8 { self.0[Self::G] }
-    pub fn get_b(&self) -> u8 { self.0[Self::B] }
-    pub fn get_a(&self) -> u8 { self.0[Self::A] }
+    pub fn get_r(&self) -> u8 {
+        self.0[Self::R]
+    }
+    pub fn get_g(&self) -> u8 {
+        self.0[Self::G]
+    }
+    pub fn get_b(&self) -> u8 {
+        self.0[Self::B]
+    }
+    pub fn get_a(&self) -> u8 {
+        self.0[Self::A]
+    }
 
     /* ===== setters ===== */
 
-    pub fn set_r(&mut self, v: u8) { self.0[Self::R] = v; }
-    pub fn set_g(&mut self, v: u8) { self.0[Self::G] = v; }
-    pub fn set_b(&mut self, v: u8) { self.0[Self::B] = v; }
-    pub fn set_a(&mut self, v: u8) { self.0[Self::A] = v; }
+    pub fn set_r(&mut self, v: u8) {
+        self.0[Self::R] = v;
+    }
+    pub fn set_g(&mut self, v: u8) {
+        self.0[Self::G] = v;
+    }
+    pub fn set_b(&mut self, v: u8) {
+        self.0[Self::B] = v;
+    }
+    pub fn set_a(&mut self, v: u8) {
+        self.0[Self::A] = v;
+    }
 
     /* ===== gamma ===== */
 
