@@ -52,7 +52,7 @@ impl eframe::App for App {
         self.poll_compute_result();
         self.update_texture(ctx);
 
-        ui_render::show_side_panel(ctx, &mut self.state);
+        ui_render::show_left_panel(ctx, &mut self.state);
         ui_render::show_central_panel(ctx, &self.texture);
     }
 }

@@ -109,7 +109,8 @@ where
             .collect()
     }
 
-    pub fn colors_from_escape_results_par(&self, escape_results: &[EscapeResult]) -> Vec<Color> {
+    pub fn colors_from_escape_results_par(&mut self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        self.coloring.normalizer.prepare(escape_results);
         escape_results
             .par_iter()
             .map(|esc_res| self.coloring.apply(&esc_res))

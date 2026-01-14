@@ -49,27 +49,20 @@ where
 }
 
 
-pub fn show_side_panel(ctx: &egui::Context, state: &mut AppState) {
+pub fn show_left_panel(ctx: &egui::Context, state: &mut AppState) {
     egui::SidePanel::left("side_panel")
         .default_width(200.)
         .width_range(200.0..=400.0)
         .show(ctx, |ui| {
         ui.heading("State");
 
+        ui.label(format!("mode: {:?}", state.mode));
         let (w, h) = state.img_cfg.resolution;
         ui.label(format!("resolution: {}x{}", w, h));
         ui.label(format!("center: ({}, {})", state.img_cfg.center.0, state.img_cfg.center.1));
         ui.label(format!("scale: ({}, {})", state.img_cfg.scale.0, state.img_cfg.scale.1));
         ui.label(format!("view size: ({}, {})", state.img_cfg.view_size().0, state.img_cfg.view_size().1));
 
-        ui.label(format!("mode: {:?}", state.mode));
-        if state.is_computing {
-            ui.label("Computing...");
-        } else {
-            if ui.button("Recompute").clicked() {
-                state.set_recomp(true);
-            }
-        }
         ui.label(format!("recomp: {}", state.recomp));
         ui.label(format!("buf_dirty: {}", state.buf_dirty));
 
@@ -77,6 +70,14 @@ pub fn show_side_panel(ctx: &egui::Context, state: &mut AppState) {
             "history len: {}",
             state.history.stack.len()
         ));
+
+        if state.is_computing {
+            ui.label("Computing...");
+        } else {
+            if ui.button("Recompute").clicked() {
+                state.set_recomp(true);
+            }
+        }
     });
 }
 

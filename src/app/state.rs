@@ -85,13 +85,16 @@ impl AppState {
 
         let dynamics = Mandelbrot::new();
 
-        let max_iter = 300;
+        let max_iter = 256;
         let escape_radius = 2.0;
         let escape_condition = EscapeByNorm {escape_radius};
         let escape_evaluator = EscapeByCount {max_iter, condition: escape_condition};
 
-        let palette = Palette::grayscale(256);
-        let normalizer = NormalizeWithMaxIter {max_iter};
+        //let palette = Palette::grayscale(256);
+        let palette = Palette::gradation_by_hue(256, 0., 360., 1., 1.);
+
+        //palette.reverse();
+        let normalizer = NormalizeWithHistgram::new(max_iter);
         let color_map = ColorMapLinear {palette};
         let coloring = Coloring {normalizer, color_map};
 
@@ -181,6 +184,10 @@ impl AppState {
 
     pub fn push_history(&mut self) {
         self.history.stack.push(self.img_cfg.clone());
+    }
+
+    pub fn reset_history(&mut self) {
+        self.history.stack = Vec::new();
     }
 
     pub fn undo(&mut self) {

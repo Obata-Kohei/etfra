@@ -84,5 +84,10 @@ pub fn handle_key_input(
                 state.undo();
             }
         }
+
+        // l: Historyのリセット
+        if i.key_pressed(egui::Key::L) {
+            state.reset_history();
+        }
     });
 }
