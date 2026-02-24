@@ -10,4 +10,5 @@ image = "0.25.6"
 num-complex = "0.4.6"
 num-traits = "0.2.19"
 rayon = "1.11.0"
+rug = "1.28.1"
 

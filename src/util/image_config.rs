@@ -1,4 +1,43 @@
 use crate::prelude::*;
+use crate::util::types;
+
+pub enum PlaneMode {
+    ParameterPlane,  // Mandelbrotなど．各ピクセルがc
+    DynamicalPlane,  // Julia, Newton fractalなど．各ピクセルがz0
+}
+
+#[derive(Debug, Clone)]
+pub struct Plane {
+    pub resolution: (usize, usize),  // (w, h)
+    pub scale: (types::Real, types::Real),  // 1 pxあたりの座標平面の長さ．(x, y).
+    pub center: (types::Real, types::Real),  // 描画の中心となる座標平面上の座標. 
+    pub precision_bit: u32,  // rugの精度
+    pub plane_mode: PlaneMode  // どういう平面か
+}
+
+impl Plane {
+    pub fn new(
+        resolution: (usize, usize),
+        scale: (types::Real, types::Real),
+        center: (types::Real, types::Real),
+        precision_bit: u32,
+        plane_mode: PlaneMode,
+    ) -> Self {
+        Self {
+            resolution,
+            scale,
+            center,
+            precision_bit,
+            plane_mode,
+        }
+    }
+
+    pub fn view_size(&self) -> (types::Real, types::Real) {
+        //
+    }
+}
+
+
 
 #[derive(Debug, Clone)]
 pub struct ImageConfig {
