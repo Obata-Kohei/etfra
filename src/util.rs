@@ -1,4 +1,4 @@
 pub mod color;
-pub mod image_config;
+pub mod viewport;
 pub mod palette;
 pub mod types;

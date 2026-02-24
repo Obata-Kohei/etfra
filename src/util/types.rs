@@ -1,5 +1,3 @@
-use num_traits::FromPrimitive;
-use std::ops::{Add, Div, Mul, Sub};
 use rug;
 
 pub type Real = rug::Float;
