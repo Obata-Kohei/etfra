@@ -1,7 +1,7 @@
 use crate::prelude::*;
 
 pub trait EscapeEvaluator<D: Dynamics> {
-    fn evaluate(&self, dynamics: &D, p: &D::Param) -> EscapeResult;
+    fn evaluate(&self, dynamics: &D, state: &D::State) -> EscapeResult;
 }
 
 #[derive(Debug, Default)]

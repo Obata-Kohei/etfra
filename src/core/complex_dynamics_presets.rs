@@ -1,5 +1,11 @@
+use crate::util::complex::Complex;
 use crate::prelude::*;
-use num_complex::{self, Complex};
+use crate::util::types::Real;
+
+pub struct MandelbrotState {
+    pub z: Complex<Real>,
+    
+}
 
 #[derive(Debug)]
 pub struct Mandelbrot;
@@ -12,13 +18,8 @@ impl Mandelbrot {
 
 impl Dynamics for Mandelbrot {
     type State = Complex<Float>;
-    type Param = Complex<Float>;
 
-    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
-        Complex::new(point.0, point.1)
-    }
-
-    fn initial_state(&self, _p: &Self::Param) -> Self::State {
+    fn init(&self, _p: &Self::Param) -> Self::State {
         Complex::ZERO
     }
 

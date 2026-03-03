@@ -1,28 +1,12 @@
 use crate::prelude::*;
 
-pub enum IterResult {
-    Continue,
-    Escaped,
-    Converged(usize),
-    MaxIter,
-}
-
-pub trait DynamicalSystem {
+pub trait Dynamics {
     type State;
 
-    fn init(
-        &self,
-        pixel: (Real, Real),
-        param: (Real, Real),
-    ) -> Self::State;
+    fn init(&self, state: Self::State) -> Self::State;
 
-    fn step(&self, state: &mut Self::State);
-
-    fn classify(&self, state: &Self::State) -> IterResult;
+    fn f(&self, state: &Self::State) -> Self::State;
 }
-
-
-
 
 
 
