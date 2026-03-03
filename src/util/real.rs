@@ -1,7 +1,5 @@
 use std::ops::{Add, Sub, Mul, Div, AddAssign, SubAssign, MulAssign, DivAssign};
 
-use std::ops::{AddAssign, SubAssign, MulAssign};
-
 pub trait Real:
     Clone
     + PartialOrd
