@@ -8,6 +8,7 @@ pub trait Real:
     + AddAssign<Self>
     + SubAssign<Self>
     + MulAssign<Self>
+    + DivAssign<Self>
 {
     /* ===== 生成 ===== */
 
@@ -16,6 +17,9 @@ pub trait Real:
 
     /// 指定精度で f64 から生成
     fn from_f64(prec: u32, value: f64) -> Self;
+
+    // 指定制度で usize から生成
+    fn from_usize(prec: u32, value: usize) -> Self;
 
     /* ===== 代入・再利用 ===== */
 
@@ -40,4 +44,7 @@ pub trait Real:
 
     /// self *= other
     fn mul_assign_ref(&mut self, other: &Self);
+
+    /// self /= other
+    fn div_assign_ref(&mut self, other: &Self);
 }

@@ -1,4 +1,4 @@
 pub trait EscapeCondition<S> {
-    // SはDynamics::Stateを期待する
+    // Dynamics::Stateを期待する
     fn escaped(&self, s: &S) -> bool;
 }

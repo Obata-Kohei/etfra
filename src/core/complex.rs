@@ -2,6 +2,7 @@ use crate::util::real::Real;
 
 #[derive(Clone)]
 pub struct Complex<R: Real> {
+    pub prec: u32,
     pub re: R,
     pub im: R,
 }
@@ -9,6 +10,7 @@ pub struct Complex<R: Real> {
 impl<R: Real> Complex<R> {
     pub fn zero(prec: u32) -> Self {
         Self {
+            prec: prec,
             re: R::zero(prec),
             im: R::zero(prec),
         }
@@ -16,6 +18,7 @@ impl<R: Real> Complex<R> {
 
     pub fn from_f64(prec: u32, re: f64, im: f64) -> Self {
         Self {
+            prec: prec,
             re: R::from_f64(prec, re),
             im: R::from_f64(prec, im),
         }

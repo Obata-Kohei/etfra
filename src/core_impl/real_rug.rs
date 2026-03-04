@@ -1,4 +1,4 @@
-use crate::util::real::Real;
+use crate::core::real::Real;
 use rug::Float;
 
 impl Real for Float {
@@ -7,6 +7,10 @@ impl Real for Float {
     }
 
     fn from_f64(prec: u32, value: f64) -> Self {
+        Float::with_val(prec, value)
+    }
+
+    fn from_usize(prec: u32, value: usize) -> Self {
         Float::with_val(prec, value)
     }
 
@@ -38,4 +42,9 @@ impl Real for Float {
     fn mul_assign_ref(&mut self, other: &Self) {
         *self *= other;
     }
+
+    fn div_assign_ref(&mut self, other: &self) {
+        *self /= other;
+    }
+
 }

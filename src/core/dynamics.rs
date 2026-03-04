@@ -1,24 +1,12 @@
-use crate::prelude::*;
+use crate::core::real::Real;
 
 pub trait Dynamics {
-    type State;
+    type Real: Real;
+    type State: State<Real = Self::Real>;
 
-    fn init(&self, state: Self::State) -> Self::State;
+    /// xy平面上の点から初期状態を生成
+    fn init_state(&self, point: (Self::Real, Self::Real)) -> Self::State;
 
-    fn f(&self, state: &Self::State) -> Self::State;
+    /// 1ステップ進める
+    fn step(&self, state: &mut Self::State);
 }
-
-
-
-///
-/*
-pub trait Dynamics {
-    type State;
-    type Param;
-
-    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param;
-
-    fn initial_state(&self, p: &Self::Param) -> Self::State;
-    fn step(&self, x: &Self::State, p: &Self::Param) -> Self::State;
-}
-*/

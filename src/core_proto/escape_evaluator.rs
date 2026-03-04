@@ -1,23 +1,17 @@
-use crate::core::dynamics::Dynamics;
+use crate::prelude::*;
 
 pub trait EscapeEvaluator<D: Dynamics> {
-    type Result;
-
-    fn evaluate(
-        &self,
-        dynamics: &D,
-        init_state: D::State,
-    ) -> Self::Result;
+    fn evaluate(&self, dynamics: &D, state: &D::State) -> EscapeResult;
 }
 
 #[derive(Debug, Default)]
-pub struct IterResult {
+pub struct EscapeResult {
     pub escaped: bool,
     pub iter: usize,
     //pub nu: Float,  // smooth coloring
 }
 
-impl IterResult {
+impl EscapeResult {
     pub fn new(escaped: bool, iter: usize) -> Self {
         Self { escaped, iter }
     }
