@@ -74,6 +74,11 @@ pub fn handle_key_input(ctx: &egui::Context, state: &mut AppState) {
             state.set_buf_dirty(true);
         }
 
+        // i: 画像の保存
+        if i.key_pressed(egui::Key::I) {
+            state.export_dialog.open = true;
+        }
+
         // p: 計算処理の停止
         if i.key_pressed(egui::Key::P) {
             if let Some(flag) = &state.cancel_flag {

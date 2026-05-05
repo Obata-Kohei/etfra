@@ -86,3 +86,78 @@ pub fn show_central_panel(ctx: &egui::Context, texture: &Option<egui::TextureHan
         }
     });
 }
+
+pub fn show_export_dialog(ctx: &egui::Context, state: &mut AppState) -> Option<ExportRequest> {
+    if !state.export_dialog.open {
+        return None;
+    }
+
+    let mut result: Option<ExportRequest> = None;
+    let mut close = false;
+
+    egui::Window::new("Export Image")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label("Input resolution (px) for the image to save.");
+            ui.label(format!(
+                "Center coordinates: ({:.6}, {:.6})",
+                state.img_cfg.center.0, state.img_cfg.center.1
+            ));
+            ui.separator();
+
+            egui::Grid::new("export_grid")
+                .num_columns(2)
+                .spacing([8.0, 4.0])
+                .show(ui, |ui| {
+                    ui.label("Width (px):");
+                    ui.text_edit_singleline(&mut state.export_dialog.width_str);
+                    ui.end_row();
+
+                    ui.label("Height (px):");
+                    ui.text_edit_singleline(&mut state.export_dialog.height_str);
+                    ui.end_row();
+                });
+
+            ui.separator();
+            ui.horizontal(|ui| {
+                let w_parsed = state.export_dialog.width_str.trim().parse::<usize>();
+                let h_parsed = state.export_dialog.height_str.trim().parse::<usize>();
+                let valid = matches!((&w_parsed, &h_parsed), (Ok(w), Ok(h)) if *w > 0 && *h > 0);
+
+                ui.add_enabled_ui(valid, |ui| {
+                    if ui.button("Save").clicked() {
+                        if let (Ok(w), Ok(h)) = (w_parsed, h_parsed) {
+                            result = Some(ExportRequest {
+                                width: w,
+                                height: h,
+                            });
+                        }
+                        close = true;
+                    }
+                });
+
+                if ui.button("Cancel").clicked() {
+                    close = true;
+                }
+            });
+
+            if !state.export_dialog.width_str.trim().parse::<usize>().is_ok()
+                || !state.export_dialog.height_str.trim().parse::<usize>().is_ok()
+            {
+                ui.colored_label(egui::Color32::RED, "In@u positive numbers");
+            }
+        });
+
+    if close {
+        state.export_dialog.open = false;
+    }
+
+    result
+}
+
+pub struct ExportRequest {
+    pub width: usize,
+    pub height: usize,
+}
