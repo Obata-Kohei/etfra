@@ -39,7 +39,7 @@ where
     }
 }
 
-pub fn show_side_panel(ctx: &egui::Context, state: &mut AppState) {
+pub fn show_left_panel(ctx: &egui::Context, state: &mut AppState) {
     egui::SidePanel::left("side_panel")
         .default_width(200.)
         .width_range(200.0..=400.0)
@@ -85,6 +85,22 @@ pub fn show_central_panel(ctx: &egui::Context, texture: &Option<egui::TextureHan
             ui.add(Image::new(tex).fit_to_exact_size(display_size));
         }
     });
+}
+
+pub fn show_right_panel(ctx: &egui::Context) {
+    egui::SidePanel::left("how_to_operate")
+        .default_width(200.)
+        .width_range(200.0..=400.0)
+        .show(ctx, |ui| {
+            ui.heading("How to operate");
+            ui.label("WASD: Shift");
+            ui.label("E/Q: Zoom in/out");
+            ui.label("X/C: Change to Survey/Burst mode");
+            ui.label("I: Save Image");
+            ui.label("Z: Back to previous state");
+            ui.label("R: Recompute");
+            ui.label("P: Stop computing");
+        });
 }
 
 pub fn show_export_dialog(ctx: &egui::Context, state: &mut AppState) -> Option<ExportRequest> {
@@ -146,7 +162,7 @@ pub fn show_export_dialog(ctx: &egui::Context, state: &mut AppState) -> Option<E
             if !state.export_dialog.width_str.trim().parse::<usize>().is_ok()
                 || !state.export_dialog.height_str.trim().parse::<usize>().is_ok()
             {
-                ui.colored_label(egui::Color32::RED, "In@u positive numbers");
+                ui.colored_label(egui::Color32::RED, "Input positive numbers");
             }
         });
 

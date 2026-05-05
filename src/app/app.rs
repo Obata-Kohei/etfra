@@ -14,11 +14,13 @@ pub struct App {
     pub state: AppState,
     pub texture: Option<egui::TextureHandle>,
 
+    // メイン計算スレッド
     compute_handle: Option<JoinHandle<()>>,
     result_rx: Option<Receiver<(Box<dyn RenderEngine>, ImageConfig, Option<Vec<u8>>)>>,
 
     // エクスポート用スレッド（画面描画とは別に走らせる）
     export_handle: Option<JoinHandle<()>>,
+    export_rx: Option<Receiver<Box<dyn RenderEngine>>>, // engineの返却受け取り用
     export_status: ExportStatus,
 }
 
@@ -39,6 +41,7 @@ impl App {
             compute_handle: None,
             result_rx: None,
             export_handle: None,
+            export_rx: None,
             export_status: ExportStatus::Idle,
         }
     }
@@ -59,8 +62,8 @@ impl eframe::App for App {
             }
         }
 
-        // 新規計算開始
-        if self.state.recomp && self.compute_handle.is_none() {
+        // 新規計算開始（engineがある場合のみ）
+        if self.state.recomp && self.compute_handle.is_none() && self.state.engine.is_some() {
             self.start_compute_thread();
         }
 
@@ -70,7 +73,8 @@ impl eframe::App for App {
         // エクスポートスレッドの完了チェック
         self.poll_export_result();
 
-        ui_render::show_side_panel(ctx, &mut self.state);
+        ui_render::show_left_panel(ctx, &mut self.state);
+        ui_render::show_right_panel(ctx);
         ui_render::show_central_panel(ctx, &self.texture);
 
         // エクスポートダイアログ表示
@@ -163,14 +167,13 @@ impl App {
             return;
         }
 
-        // エンジンは clone できないので、現在の rgba_buf を再利用せず別計算する。
-        // engine を一時的に取り出す。メイン計算中でなければ必ず Some のはず。
+        // engine を一時的に取り出す。エクスポート完了後にチャンネルで返却される。
         let Some(mut engine) = self.state.engine.take() else {
             return;
         };
 
-        // 現在の view_size (複素平面上の表示幅・高さ) を保ちつつ、
-        // 解像度を width x height に変更した ImageConfig を作る。
+        // 現在の scale をそのまま使い、指定解像度の ImageConfig を作る。
+        // （view_size を保ちたい場合は scale を再計算するが、ここでは scale 固定）
         let scale = self.state.img_cfg.scale;
         let export_cfg = ImageConfig::new(
             (width, height),
@@ -180,23 +183,26 @@ impl App {
 
         self.export_status = ExportStatus::Running;
 
-        let cancel = Arc::new(AtomicBool::new(false)); // エクスポートはキャンセル不可（簡略化）
+        // engineを返却するためのチャンネル
+        // compute スレッドと同じパターン：
+        //   スレッド側で tx.send(engine) → メイン側で rx.try_recv() で受け取る
+        use std::sync::mpsc;
+        let (tx, rx) = mpsc::channel::<Box<dyn RenderEngine>>();
+        self.export_rx = Some(rx);
+
+        let cancel = Arc::new(AtomicBool::new(false));
 
         self.export_handle = Some(std::thread::spawn(move || {
             // フラクタル計算（並列）
             let rgba_buf = engine.compute_par(&export_cfg, &cancel);
 
-            // エンジンを戻す必要があるが、スレッド境界を越えられないため
-            // ここではエンジンをドロップし、メインスレッドで recomp フラグを立てる。
-            // （engine は drop される）
-            drop(engine);
+            // 計算完了後、engineをメインスレッドへ送り返す
+            // （computeスレッドが tx.send((engine, img_cfg, result)) するのと同じ構造）
+            let _ = tx.send(engine);
 
-            let Some(buf) = rgba_buf else {
-                // 計算失敗 -> 何もしない（エラー通知は別途）
-                return;
-            };
+            // PNG保存
+            let Some(buf) = rgba_buf else { return };
 
-            // PNG 保存
             let filename = {
                 use chrono::Local;
                 let now = Local::now();
@@ -206,39 +212,24 @@ impl App {
             let img = image::RgbaImage::from_raw(width as u32, height as u32, buf)
                 .expect("buffer size mismatch");
             let _ = img.save(&filename);
-            // 本来は成功/失敗をチャンネルで返したいが、簡略化のためファイル存在で確認
         }));
-
-        // engine を取り出したままなので、メイン計算は停止状態。
-        // エクスポート完了後に recomp を立てて engine を再構築することで復旧する。
-        // ただし with_preset_values の engine は外から再作成できないため、
-        // より堅牢にするには engine を Arc<Mutex> にする必要がある。
-        // ここでは「エクスポート中はメイン計算も止まる」という割り切り実装とする。
     }
 
     fn poll_export_result(&mut self) {
-        let Some(handle) = &self.export_handle else { return };
+        // export_rx がなければexport中ではない
+        let Some(rx) = &self.export_rx else { return };
 
-        if handle.is_finished() {
-            let handle = self.export_handle.take().unwrap();
-            let _ = handle.join();
+        // engineが送り返されてきたか非ブロッキングで確認
+        // （compute スレッドの poll_compute_result と同じパターン）
+        if let Ok(engine) = rx.try_recv() {
+            // engineをメインの状態に戻す
+            self.state.engine = Some(engine);
 
-            // engine が None になっているので recomp を立てて再起動させる。
-            // engine が無いと start_compute_thread でパニックするため、
-            // engine が None のままでは recomp を立てない。
-            // ここではエクスポート完了の通知だけにして、engine の再作成は
-            // ユーザーに R キーを押してもらうか、別途対処が必要。
-            //
-            // 実用的な解決策: engine を Arc<Mutex<Box<dyn RenderEngine>>> にして
-            // エクスポートスレッドと共有する。今回は簡略版として、
-            // engine が None のときに recomp しないガードを app.rs の
-            // start_compute_thread 側で持っている（engine.take() で None の場合 panic）。
-            // そのため、ここでエクスポート完了後に engine が None なら
-            // recomp フラグを立てても安全なように None チェックを追加する。
+            // ハンドルとチャンネルをクリア
+            self.export_handle = None;
+            self.export_rx = None;
+
             self.export_status = ExportStatus::Done("Save done.".to_string());
-
-            // engine が無いので、ユーザーが再描画できるよう recomp は立てない。
-            // NOTE: engine を Arc<Mutex> にリファクタすれば解決する。
         }
     }
 
