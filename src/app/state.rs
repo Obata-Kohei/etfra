@@ -13,6 +13,7 @@ pub struct AppState {
     pub move_ratio: Float,
     pub zoom_ratio: Float,
     pub history: History,
+    pub export_dialog: ExportDialog,
 
     pub engine: Option<Box<dyn RenderEngine>>, // フラクタル描画エンジン．変更があればself.engine = Box::new(EscapeTimeFractal::new(...));と新しく作り直す
 
@@ -40,6 +41,25 @@ pub struct History {
     pub stack: Vec<ImageConfig>,
 }
 
+#[derive(Debug)]
+pub struct ExportDialog {
+    pub open: bool,
+    pub width_str: String,
+    pub height_str: String,
+    pub saving: bool,
+}
+
+impl Default for ExportDialog {
+    fn default() -> Self {
+        Self {
+            open: false,
+            width_str: "1920".to_string(),
+            height_str: "1080".to_string(),
+            saving: false,
+        }
+    }
+}
+
 impl AppState {
     pub fn new(
         img_cfg: ImageConfig,
@@ -51,6 +71,7 @@ impl AppState {
         move_ratio: Float,
         zoom_ratio: Float,
         history: History,
+        export_dialog: ExportDialog,
 
         engine: Option<Box<dyn RenderEngine>>,
 
@@ -66,6 +87,8 @@ impl AppState {
             move_ratio,
             zoom_ratio,
             history,
+            export_dialog,
+
             engine,
             rgba_buf,
         }
@@ -87,6 +110,7 @@ impl AppState {
         let move_ratio = 0.1;
         let zoom_ratio = 0.5;
         let history = History { stack: Vec::new() };
+        let export_dialog = ExportDialog::default();
 
         let dynamics = Mandelbrot::new();
 
@@ -118,6 +142,7 @@ impl AppState {
             move_ratio,
             zoom_ratio,
             history,
+            export_dialog,
             engine: Some(Box::new(etf)),
             rgba_buf: None,
         }
