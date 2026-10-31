@@ -1,5 +1,7 @@
+mod app;
+
 use eframe::egui;
-use etfra::prelude::*;
+use app::app::App;
 
 fn main() -> eframe::Result<()> {
     let options = eframe::NativeOptions {

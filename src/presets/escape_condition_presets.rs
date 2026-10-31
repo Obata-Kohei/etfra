@@ -6,6 +6,12 @@ pub struct EscapeByNorm {
     pub escape_radius: Float,
 }
 
+impl EscapeByNorm {
+    pub fn new(escape_radius: Float) -> Self {
+        Self { escape_radius }
+    }
+}
+
 impl EscapeCondition<Complex<Float>> for EscapeByNorm {
     fn escaped(&self, z: &Complex<Float>) -> bool {
         z.norm_sqr() > self.escape_radius * self.escape_radius

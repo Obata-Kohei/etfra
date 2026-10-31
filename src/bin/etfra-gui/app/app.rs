@@ -8,7 +8,7 @@ use crate::app::{
     state::AppState,
     ui_render::{self, RenderEngine},
 };
-use crate::prelude::*;
+use etfra::prelude::*;
 
 pub struct App {
     pub state: AppState,

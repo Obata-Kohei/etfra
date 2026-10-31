@@ -1,2 +1,11 @@
 pub mod prelude;
+pub mod color_map;
+pub mod coloring;
+pub mod complex_dynamics;
+pub mod dynamics;
+pub mod escape_condition;
+pub mod escape_evaluator;
+pub mod escape_time_fractal;
+pub mod normalize_esc_info;
+pub mod presets;
 pub mod util;

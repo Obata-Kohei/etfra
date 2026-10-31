@@ -1,5 +1,5 @@
 use crate::app::ui_render::RenderEngine;
-use crate::prelude::*;
+use etfra::prelude::*;
 use num_traits::FromPrimitive;
 use std::sync::{atomic::AtomicBool, Arc};
 

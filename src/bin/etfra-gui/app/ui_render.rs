@@ -1,5 +1,5 @@
 use crate::app::state::AppState;
-use crate::prelude::*;
+use etfra::prelude::*;
 use eframe::egui;
 use egui::Image;
 use std::sync::atomic::AtomicBool;
