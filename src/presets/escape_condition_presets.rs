@@ -18,8 +18,8 @@ impl EscapeCondition<Complex<Float>> for EscapeByNorm {
     }
 }
 
-impl EscapeCondition<PhoenixState> for EscapeByNorm {
-    fn escaped(&self, state: &PhoenixState) -> bool {
+impl EscapeCondition<State2ndOrder> for EscapeByNorm {
+    fn escaped(&self, state: &State2ndOrder) -> bool {
         state.current.norm_sqr() > self.escape_radius * self.escape_radius
     }
 }

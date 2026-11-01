@@ -139,7 +139,7 @@ pub struct Phoenix {
 /// The state used for Phoenix fractal
 /// current is z[n], previous is z[n - 1]
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct PhoenixState {
+pub struct State2ndOrder {
     pub current: Complex<Float>,
     pub previous: Complex<Float>,
 }
@@ -157,7 +157,7 @@ impl Phoenix {
 }
 
 impl Dynamics for Phoenix {
-    type State = PhoenixState;
+    type State = State2ndOrder;
     type Param = Complex<Float>;
 
     fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
@@ -165,7 +165,7 @@ impl Dynamics for Phoenix {
     }
 
     fn initial_state(&self, _p: &Self::Param) -> Self::State {
-        PhoenixState {
+        State2ndOrder {
             current: Complex::ZERO,
             previous: Complex::ZERO,
         }
@@ -174,9 +174,107 @@ impl Dynamics for Phoenix {
     fn step(&self, state: &Self::State, c: &Self::Param) -> Self::State {
         let next = state.current * state.current + c + self.feedback * state.previous;
 
-        PhoenixState {
+        State2ndOrder {
             current: next,
             previous: state.current,
         }
+    }
+}
+
+/// Multibrot
+/// z[n + 1] = z[n] ^ power + c
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Multibrot {
+    pub power: Float,
+}
+
+impl Multibrot {
+    pub fn new(power: Float) -> Self {
+        Self { power }
+    }
+
+    fn powf(z: Complex<Float>, power: Float) -> Complex<Float> {
+        let r = z.norm();
+        let theta = z.arg();
+        Complex::from_polar(r.powf(power), theta * power)
+    }
+}
+
+impl Dynamics for Multibrot {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
+        Complex::ZERO
+    }
+
+    fn step(&self, z: &Self::State, c: &Self::Param) -> Self::State {
+        Self::powf(*z, self.power) + c
+    }
+}
+
+
+/// Celtic
+///  w = z[n] ^ 2
+/// z[n + 1] = |Re(w)| + i * Im(w) + c
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Celtic;
+
+impl Celtic {
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
+impl Dynamics for Celtic {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
+        Complex::ZERO
+    }
+
+    fn step(&self, z: &Self::State, c: &Self::Param) -> Self::State {
+        let squared = z * z;
+        Complex::new(squared.re.abs(), squared.im) + c
+    }
+}
+
+
+/// Perpendicular Burning ship
+/// u = conj(z[n])
+/// z[n + 1] = u ^ 2 + c
+#[derive(Debug, Default, Clone, Copy)]
+pub struct PerpendicularBurningShip;
+
+impl PerpendicularBurningShip {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Dynamics for PerpendicularBurningShip {
+    type State = Complex<Float>;
+    type Param = Complex<Float>;
+
+    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
+        Complex::ZERO
+    }
+
+    fn step(&self, z: &Self::State, c: &Self::Param) -> Self::State {
+        let reflected = Complex::new(z.re.abs(), -z.im.abs());
+        reflected * reflected + c
     }
 }
