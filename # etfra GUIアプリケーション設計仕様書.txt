@@ -1,0 +1,863 @@
+# etfra GUIアプリケーション設計仕様書
+
+## 1. 目的
+
+本仕様書は、etfraのGUIアプリケーション部分の構造を整理し、機能追加に対する変更容易性、処理効率および保守性を向上させるための設計方針を定義する。
+
+本設計では、GUIアプリケーションの責務を明確に分離し、各機能が互いの内部実装に依存しない構造を採用する。
+
+特に、以下の要求を満たすことを目的とする。
+
+1. フラクタルの種類、配色、解像度、アスペクト比などを実行中に変更できること。
+2. 設定変更に応じて必要な処理だけを実行し、不要な再計算を避けること。
+3. 計算中でもGUIの操作および表示を継続できること。
+4. 計算の中止および再実行を安全に行えること。
+5. 履歴、画像保存、設定入力などの機能を、既存の機能に過度に依存せず追加できること。
+6. GUIライブラリに依存する処理と、アプリケーションの状態管理・計算制御を分離すること。
+
+## 2. 基本設計方針
+
+### 2.1. 責務の分離
+
+GUIアプリケーションは、以下の4つの責務に分割する。
+
+| 構成要素 | 責務 |
+|---|---|
+| App | アプリケーション全体の実行制御 |
+| AppState | アプリケーションの状態および設定の保持 |
+| Controller | ユーザー操作の処理、状態変更、計算要求の発行 |
+| UI | 画面表示およびユーザー入力の受付 |
+| ComputeManager | 計算処理の開始、中止、結果の受け取り |
+
+`App` は各構成要素を組み合わせる役割に限定する。
+
+`AppState` は設定や状態を保持するだけとし、計算エンジン、スレッド、GUIテクスチャなどの実行資源を保持しない。
+
+`Controller` は操作に応じた状態変更と更新要求の決定を担当する。
+
+`UI` は表示と入力に専念し、計算エンジンの生成や計算スレッドの管理を行わない。
+
+`ComputeManager` は計算処理の非同期実行と、そのライフサイクルを管理する。
+
+### 2.2. 依存関係
+
+依存関係は以下の方向に限定する。
+
+- UIはAppStateを参照し、ユーザー操作をActionとして通知する。
+- ControllerはAppStateを更新し、必要に応じてComputeManagerへ計算要求を発行する。
+- ComputeManagerはcoreの計算機能を利用する。
+- Appは各構成要素を組み合わせ、実行順序を制御する。
+
+coreはGUIアプリケーションの構造やeguiに依存してはならない。
+
+### 2.3. 設計上の原則
+
+- GUIから計算エンジンの具体的な型を参照しない。
+- 設定値と実行中の計算状態を区別する。
+- 設定変更の処理をControllerに集約する。
+- UIから直接計算スレッドを操作しない。
+- 計算要求には、その時点の設定を確定したスナップショットを渡す。
+- 古い計算結果が新しい設定に基づく画像を上書きしないようにする。
+- 状態を表すフラグの組み合わせを減らし、必要に応じて列挙型で状態を表現する。
+
+## 3. モジュール構成
+
+### 3.1. ディレクトリ構成
+
+以下の構成を標準とする。
+
+```text
+src/
+├── app.rs
+├── core.rs
+├── lib.rs
+├── main.rs
+│
+├── app/
+│   ├── app.rs
+│   ├── state.rs
+│   ├── settings.rs
+│   ├── controller.rs
+│   ├── compute.rs
+│   ├── history.rs
+│   └── ui/
+│       ├── mod.rs
+│       ├── panels.rs
+│       ├── settings.rs
+│       ├── export.rs
+│       └── key_input.rs
+│
+├── core/
+│   └── ...
+│
+└── util/
+    └── ...
+```
+
+### 3.2. 各モジュールの責務
+
+#### app/app.rs
+
+アプリケーションのエントリーポイントおよび全体制御を担当する。
+
+担当する処理：
+
+- AppStateなどの初期化
+- eguiのupdate処理
+- UIの描画呼び出し
+- Controllerによる操作処理の呼び出し
+- ComputeManagerの結果取得
+- 画像表示用Textureの更新
+
+担当してはならない処理：
+
+- フラクタルの具体的な生成
+- フラクタルの計算アルゴリズム
+- 設定変更に伴う個別の計算条件の判定
+- UI部品の具体的なレイアウト定義
+
+#### app/state.rs
+
+アプリケーションの状態を保持する。
+
+担当する情報：
+
+- AppSettings
+- ComputeStatus
+- 表示用画像データ
+- History
+- ExportStateなどのUIに関連する状態
+
+計算エンジン、JoinHandle、Receiver、AtomicBoolなどの計算実行資源を保持してはならない。
+
+#### app/settings.rs
+
+ユーザーが選択・設定したアプリケーション設定を定義する。
+
+設定項目：
+
+- Dynamicsの種類およびパラメータ
+- Coloringの種類およびパラメータ
+- ImageConfig
+- 最大反復回数などの計算条件
+- その他、フラクタル計算に必要な設定
+
+設定は、計算要求を生成する際に複製可能なデータとして定義する。
+
+#### app/controller.rs
+
+ユーザー操作に伴う状態変更および更新要求の決定を担当する。
+
+担当する処理：
+
+- フラクタル種類の変更
+- 配色の変更
+- 解像度・アスペクト比の変更
+- 表示範囲の移動・拡大縮小
+- 最大反復回数などの設定変更
+- 履歴への保存および復元
+- 設定変更に応じた更新要求の決定
+
+UIから受け取ったActionを処理し、AppStateを更新する。
+
+ControllerはeguiのUI部品を直接操作してはならない。
+
+#### app/compute.rs
+
+計算処理の非同期実行を管理する。
+
+担当する処理：
+
+- 計算要求の受け取り
+- 計算処理の開始
+- 実行中の計算のキャンセル
+- 計算結果の受け取り
+- 計算の終了状態の通知
+- 計算要求の世代管理
+
+計算エンジンの生成は、このモジュールまたはcore側のFactoryに集約する。
+
+UIやAppStateに計算エンジンを返却する設計にしてはならない。
+
+#### app/history.rs
+
+設定状態の履歴を管理する。
+
+履歴にはImageConfigだけでなく、Dynamics、Coloringなどの設定も含める。
+
+履歴の保存・復元はAppSettingsを単位とする。
+
+#### app/ui/
+
+eguiによる表示およびユーザー入力を担当する。
+
+| ファイル | 責務 |
+|---|---|
+| mod.rs | UIモジュールの公開・統合 |
+| panels.rs | 左右パネル、中央画像表示 |
+| settings.rs | フラクタル、配色、解像度などの設定UI |
+| export.rs | 画像保存用ダイアログ |
+| key_input.rs | キーボード入力の解釈 |
+
+UIは設定変更の意味や計算処理の詳細を判断しない。
+
+ユーザー操作をActionとして通知し、変更結果はAppStateから参照する。
+
+## 4. データ構造
+
+### 4.1. AppSettings
+
+アプリケーションの設定を表す。
+
+```rust
+#[derive(Clone)]
+pub struct AppSettings {
+    pub image: ImageConfig,
+    pub dynamics: DynamicsSettings,
+    pub coloring: ColoringSettings,
+    pub render: RenderSettings,
+}
+```
+
+各設定型は、GUI部品や計算エンジンの具体的な型に依存しない。
+
+### 4.2. DynamicsSettings
+
+```rust
+#[derive(Clone)]
+pub enum DynamicsSettings {
+    Mandelbrot,
+    Julia {
+        c: Complex<Float>,
+    },
+    BurningShip,
+    Custom {
+        formula: String,
+    },
+}
+```
+
+フラクタルの種類と、その種類に固有のパラメータを保持する。
+
+新しいフラクタルを追加する場合は、設定型およびcore側の生成処理を拡張する。
+
+### 4.3. ColoringSettings
+
+```rust
+#[derive(Clone)]
+pub enum ColoringSettings {
+    Grayscale,
+    Hue,
+    Saturation,
+    Brightness,
+    Custom {
+        // 必要な配色パラメータ
+    },
+}
+```
+
+配色方式と、その方式に固有のパラメータを保持する。
+
+パレットの変更は、フラクタルの反復計算を再実行せずに反映できる構造とする。
+
+### 4.4. RenderSettings
+
+```rust
+#[derive(Clone)]
+pub struct RenderSettings {
+    pub max_iter: usize,
+    pub escape_radius: Float,
+    pub parallel: bool,
+}
+```
+
+計算に必要な共通設定を保持する。
+
+実際に採用するフィールドはcoreの計算仕様に合わせて確定する。
+
+### 4.5. AppState
+
+```rust
+pub struct AppState {
+    pub settings: AppSettings,
+    pub compute_status: ComputeStatus,
+    pub image: Option<RenderedImage>,
+    pub history: History,
+    pub export_state: ExportState,
+}
+```
+
+AppStateはアプリケーションの論理状態を表す。
+
+GUIのTextureHandleや計算スレッドの所有権は保持しない。
+
+### 4.6. ComputeStatus
+
+```rust
+pub enum ComputeStatus {
+    Idle,
+    Running,
+    Cancelling,
+    Failed(String),
+}
+```
+
+計算処理の状態を表す。
+
+複数のbool値によって計算状態を表現してはならない。
+
+各状態の意味は以下のとおりとする。
+
+| 状態 | 意味 |
+|---|---|
+| Idle | 実行中の計算がない |
+| Running | 計算を実行中 |
+| Cancelling | 実行中の計算にキャンセル要求を送信済み |
+| Failed | 計算がエラーで終了した |
+
+キャンセル完了後はIdleに遷移する。
+
+### 4.7. RenderedImage
+
+```rust
+pub struct RenderedImage {
+    pub resolution: (usize, usize),
+    pub rgba: Vec<u8>,
+}
+```
+
+表示用画像データを表す。
+
+RGBAデータの長さは、必ず以下を満たす。
+
+```text
+rgba.len() == width * height * 4
+```
+
+解像度と画像データは一体として扱い、異なる解像度のデータを組み合わせてはならない。
+
+
+### 4.9. ComputeRequest / ComputeResult
+
+```rust
+pub struct ComputeRequest {
+    pub generation: u64,
+    pub settings: AppSettings,
+}
+
+pub struct ComputeResult {
+    pub generation: u64,
+    pub result: Result<RenderedImage, ComputeError>,
+}
+```
+
+ComputeRequestは計算開始時点の設定を保持する。
+
+ComputeResultは要求の世代番号と計算結果を保持する。
+
+計算エラーとキャンセルは区別する。キャンセルは通常の計算失敗として扱わない。
+
+## 5. 更新要求の管理
+
+### 5.1. 更新種別
+
+設定変更によって必要となる処理を以下の3種類に分類する。
+
+```rust
+pub enum UpdateRequired {
+    None,
+    Recolor,
+    Recompute,
+}
+```
+
+各値の意味は以下のとおりとする。
+
+| 値 | 意味 |
+|---|---|
+| None | 画像の再生成は不要 |
+| Recolor | 保存済みの計算結果を用いて再着色する |
+| Recompute | フラクタルの反復計算から再実行する |
+
+RecomputeはRecolorを含むものとする。
+
+### 5.2. 更新種別の決定
+
+| 変更項目 | 更新種別 |
+|---|---|
+| Dynamics | Recompute |
+| Juliaのパラメータ | Recompute |
+| 数式 | Recompute |
+| 最大反復回数 | Recompute |
+| Escape条件 | Recompute |
+| 表示中心座標 | Recompute |
+| 表示範囲 | Recompute |
+| 解像度 | Recompute |
+| アスペクト比 | Recompute |
+| Coloring方式 | Recolor |
+| Palette | Recolor |
+| ガンマ値などの色設定 | Recolor |
+| UIパネルの開閉 | None |
+
+更新種別はControllerで判定する。
+
+### 5.3. 更新要求の統合
+
+複数の設定を連続して変更した場合、更新要求を統合する。
+
+優先順位は以下とする。
+
+```text
+Recompute > Recolor > None
+```
+
+例えば、配色変更後にDynamicsを変更した場合、最終的な更新要求はRecomputeとする。
+
+一連のUI操作が終了した時点で、統合された更新要求に従って処理を実行する。
+
+## 6. 計算処理の管理
+
+### 6.1. 基本方針
+
+計算処理はGUIスレッドとは別のスレッドで実行する。
+
+計算スレッドにはAppSettingsのスナップショットを渡す。
+
+計算スレッドはAppStateやeguiのオブジェクトを直接参照・変更してはならない。
+
+### 6.2. 計算開始
+
+計算開始時は以下の処理を行う。
+
+1. 現在のAppSettingsを複製する。
+2. generationを更新する。
+3. ComputeRequestを生成する。
+4. 必要に応じて実行中の計算にキャンセル要求を送信する。
+5. 計算処理を開始する。
+6. ComputeStatusをRunningにする。
+
+### 6.3. 計算キャンセル
+
+計算中に新しいRecompute要求が発生した場合、実行中の計算にキャンセル要求を送信する。
+
+キャンセル要求を送信しただけでは、新しい計算を開始してはならない。
+
+旧計算の終了を確認した後、新しい計算を開始する。
+
+これにより、同時に複数の重い計算が実行されることを防ぐ。
+
+キャンセル処理は計算側が定期的に確認できる方式とする。
+
+### 6.4. 計算結果の受け取り
+
+計算結果を受け取った際は、以下を確認する。
+
+```rust
+if result.generation == current_generation {
+    // 現在の設定に対応する結果として採用
+}
+```
+
+世代番号が一致しない結果は破棄する。
+
+キャンセル済みの計算結果や、古い設定に基づく計算結果によって、現在表示中の画像を上書きしてはならない。
+
+### 6.5. 計算エンジンの所有権
+
+AppStateおよびAppは、計算エンジンの所有権を保持しない。
+
+計算エンジンはComputeManager側で生成し、計算処理の終了後に破棄する。
+
+計算エンジンをGUI側に返却するためのチャネルを設けてはならない。
+
+将来、エンジンの再利用が必要になった場合は、ComputeManager内部で管理する。
+
+### 6.6. 計算スレッドの実装方式
+
+初期実装では、計算要求ごとにワーカースレッドを起動する方式を採用してよい。
+
+ただし、同時に実行できる計算要求は1件に制限する。
+
+ワーカースレッドの終了確認、キャンセル、結果受信はComputeManagerに集約する。
+
+将来、計算要求の頻度や処理効率に問題が生じた場合は、常駐ワーカースレッド方式への変更を検討する。
+
+初期段階で複雑なタスクキューやスレッドプール管理機構を導入する必要はない。
+
+## 7. 画像データとTextureの管理
+
+### 7.1. データの分離
+
+画像データは以下の2種類に分けて管理する。
+
+| データ | 管理場所 | 内容 |
+|---|---|---|
+| RenderedImage | AppState | CPU側のRGBA画像データ |
+| TextureHandle | App | eguiによるGPU側の表示リソース |
+
+TextureHandleはGUI固有のリソースであるため、AppStateに含めない。
+
+### 7.2. Texture更新
+
+新しいRenderedImageを採用した場合、AppはTextureを更新する。
+
+Texture更新は以下の条件で実行する。
+
+- 新しい画像が採用された場合
+- 画像の解像度が変更された場合
+- Textureの再生成が必要になった場合
+
+Texture更新の要否を示すためだけに、AppStateに`buf_dirty`を保持しない。
+
+RenderedImageの更新イベントまたは画像の世代番号によって判定する。
+
+### 7.3. 画像表示
+
+画像表示時は画像のアスペクト比を維持する。
+
+表示領域のサイズと画像の解像度は別の概念として扱う。
+
+ウィンドウサイズの変更だけを理由にフラクタルの再計算を行ってはならない。
+
+## 8. UIと操作処理
+
+### 8.1. UIの基本仕様
+
+UIは以下の処理だけを担当する。
+
+1. AppStateの値を表示する。
+2. ユーザー入力を受け付ける。
+3. 入力内容をActionとして通知する。
+
+UI内部で計算エンジンを生成したり、計算スレッドを開始したりしてはならない。
+
+### 8.2. Action
+
+ユーザー操作はActionとして表現する。
+
+```rust
+pub enum AppAction {
+    SetDynamics(DynamicsSettings),
+    SetColoring(ColoringSettings),
+    SetResolution(usize, usize),
+    SetAspectRatio(AspectRatio),
+    Move(f64, f64),
+    Zoom(f64),
+    Undo,
+    Recompute,
+    CancelCompute,
+    OpenExportDialog,
+}
+```
+
+UIは操作に対応するActionを生成する。
+
+ControllerはActionを受け取り、AppStateの変更と更新要求の決定を行う。
+
+Actionを追加する場合、UIとControllerの対応部分を追加する。
+
+計算スレッドの実装を変更する必要はない構造とする。
+
+### 8.3. キーボード操作
+
+キーボード入力はkey_inputで解釈し、AppActionに変換する。
+
+キー入力処理はAppStateを直接変更してはならない。
+
+設定メニューを数字キーで操作する場合、以下の仕様とする。
+
+- 数字キーで設定項目を選択する。
+- 選択後、数字キーで候補を選択する。
+- 入力欄にキーボードフォーカスがある場合、設定用ショートカットを無効にする。
+- 数式入力や数値入力の文字入力をショートカットとして誤認しない。
+
+### 8.4. 設定入力
+
+解像度や数式などの入力は、入力中の文字列と確定済み設定を区別する。
+
+入力値の検証に失敗した場合、確定済み設定を変更してはならない。
+
+数式入力の場合は、構文検証に成功した式だけを確定済み設定に反映する。
+
+## 9. 画像エクスポート
+
+### 9.1. 基本仕様
+
+画像エクスポートは、画面表示用のTextureとは独立した処理とする。
+
+エクスポート要求時点のAppSettingsをスナップショットとして取得する。
+
+エクスポート用の解像度を指定し、指定された解像度で画像を生成・保存する。
+
+### 9.2. 計算処理との分離
+
+エクスポート処理は、画面表示用の計算処理とは独立した要求として扱う。
+
+エクスポート用の設定を画面表示用のAppSettingsに直接反映してはならない。
+
+エクスポート処理の結果によって、画面表示用のRenderedImageを上書きしてはならない。
+
+### 9.3. エクスポート状態
+
+```rust
+pub enum ExportState {
+    Idle,
+    Running,
+    Completed(String),
+    Failed(String),
+}
+```
+
+エクスポートの進行状態および結果を管理する。
+
+エクスポート処理の実行管理はComputeManagerとは分離してもよいが、計算処理との共通部分が十分に多い場合は、共通の非同期タスク管理機構を利用してよい。
+
+ただし、画面表示用計算とエクスポート処理の状態は区別する。
+
+## 10. History
+
+### 10.1. 保存対象
+
+HistoryにはAppSettingsを保存する。
+
+保存対象：
+
+- DynamicsSettings
+- ColoringSettings
+- ImageConfig
+- RenderSettings
+
+保存対象外：
+
+- ComputeStatus
+- 計算スレッドの状態
+- TextureHandle
+- 一時的なダイアログ表示状態計算中かどうかなどの一時的な実行状態は保存しない。
+
+
+### 10.2. 保存タイミング
+
+表示範囲の変更や設定変更など、ユーザーによる状態変更が確定する直前に現在のAppSettingsを保存する。
+
+連続したキー入力による移動・拡大縮小については、操作ごとに履歴を追加するか、一定の操作単位でまとめるかをControllerで統一する。
+
+### 10.3. 復元処理
+
+Undo操作ではAppSettingsを復元する。
+
+復元後は現在の設定と復元した設定を比較し、必要な更新要求を発行する。
+
+設定の復元時に、古い計算結果を新しい設定の画像として表示してはならない。
+
+## 11. Appの更新処理
+
+Appのupdate処理は、以下の順序で実行する。
+
+1. キーボード入力などからActionを取得する。
+2. ControllerにActionを渡す。
+3. ControllerがAppStateを更新する。
+4. 更新要求がある場合、ComputeManagerに処理を依頼する。
+5. ComputeManagerから計算結果を取得する。
+6. 世代番号を確認し、採用可能な結果だけをAppStateに反映する。
+7. 新しいRenderedImageがあればTextureを更新する。
+8. UIを描画する。
+
+Appのupdate処理に、個別の設定変更に関する条件分岐を大量に記述してはならない。
+
+### 11.1. Appの概念的な構造
+
+```rust
+impl eframe::App for App {
+    fn update(
+        &mut self,
+        ctx: &egui::Context,
+        _frame: &mut eframe::Frame,
+    ) {
+        let actions = self.ui.collect_actions(ctx);
+
+        self.controller
+            .process_actions(actions, &mut self.state);
+
+        self.compute_manager
+            .process_requests(&self.state);
+
+        if let Some(result) = self.compute_manager.poll_result() {
+            self.controller
+                .apply_compute_result(result, &mut self.state);
+        }
+
+        self.update_texture(ctx);
+
+        self.ui.render(ctx, &self.state);
+    }
+}
+```
+
+上記は責務と処理順序を示す概念コードであり、具体的なメソッドの引数や所有権は実装時に確定する。
+
+## 12. 設定変更から画像更新までの処理
+
+### 12.1. 配色変更
+
+1. UIが配色変更を受け付ける。
+2. SetColoring Actionを生成する。
+3. ControllerがAppSettingsのColoringSettingsを更新する。
+4. UpdateRequired::Recolorを発行する。
+5. 保存済みのFractalResultが利用可能であれば、それを使って再着色する。
+6. RenderedImageを更新する。
+7. AppがTextureを更新する。
+
+フラクタルの反復計算は再実行しない。
+
+ただし、保存済みの計算結果が存在しない場合はRecomputeに切り替える。
+
+### 12.2. Dynamics変更
+
+1. UIがDynamics変更を受け付ける。
+2. SetDynamics Actionを生成する。
+3. ControllerがDynamicsSettingsを更新する。
+4. UpdateRequired::Recomputeを発行する。
+5. 実行中の計算があればキャンセル要求を送信する。
+6. 旧計算の終了後、新しい設定で計算を開始する。
+7. 結果を受け取り、世代番号を確認する。
+8. 採用可能な結果をRenderedImageに反映する。
+9. AppがTextureを更新する。
+
+### 12.3. 解像度・アスペクト比変更
+
+1. UIが解像度またはアスペクト比を受け付ける。
+2. 対応するActionを生成する。
+3. ControllerがImageConfigを更新する。
+4. 必要な表示範囲とscaleを再計算する。
+5. UpdateRequired::Recomputeを発行する。
+6. 新しい解像度で計算する。
+7. 結果を受け取り、RenderedImageを更新する。
+8. Appが新しい解像度に対応するTextureを生成する。
+
+## 13. 禁止事項・設計上の制約
+
+以下を禁止または制約事項とする。
+
+1. AppStateにRenderEngineやEscapeTimeFractalを直接保持しない。
+2. AppStateにJoinHandle、Receiver、AtomicBoolなどを保持しない。
+3. UIから計算スレッドを直接起動・停止しない。
+4. UIから計算エンジンを直接生成しない。
+5. 計算スレッドからAppStateやeguiのオブジェクトを直接変更しない。
+6. 設定変更のたびに無条件でフラクタルの反復計算を実行しない。
+7. 世代番号の確認なしに計算結果を採用しない。
+8. 計算中の設定変更によって、実行中の計算に渡した設定スナップショットを変更しない。
+9. TextureHandleとCPU側の画像データを同一の状態として扱わない。
+10. UIの表示レイアウトと計算処理の実装を同じモジュールに記述しない。
+
+## 14. 実装移行方針
+
+既存コードを一度に全面変更せず、以下の順序で移行する。
+
+### 第1段階：状態の整理
+
+- AppSettingsを導入する。
+- AppStateからengineを削除する。
+- ComputeStatusを導入する。
+- RenderedImageを導入する。
+- HistoryをAppSettingsに対応させる。
+
+### 第2段階：Controllerの導入
+
+- AppActionを定義する。
+- key_inputをAction生成に変更する。
+- UIからAppStateへの直接変更をなくす。
+- 設定変更処理をControllerに集約する。
+
+### 第3段階：ComputeManagerの導入
+
+- 計算要求と結果の型を定義する。
+- 計算エンジンの生成をComputeManager側に移す。
+- engine.take()による所有権移動と返却処理を廃止する。
+- キャンセル処理を集約する。
+- generationによる結果の採用判定を導入する。
+
+### 第4段階：更新処理の整理
+
+- UpdateRequiredを導入する。
+- 設定変更と必要な更新処理の対応を定義する。
+- RecolorとRecomputeを分離する。
+- 計算結果のキャッシュを利用できるようにする。
+
+### 第5段階：UIの整理
+
+- ui_render.rsを機能単位に分割する。
+- UIからActionを生成する構造に変更する。
+- 設定UIを追加する。
+- アスペクト比・解像度入力を追加する。
+- 数式入力と構文検証を追加する。
+
+### 第6段階：エクスポートと履歴の整理
+
+- AppSettingsによる履歴保存を実装する。
+- エクスポート用の設定スナップショットを導入する。
+- エクスポート処理を画面表示用計算から分離する。
+
+## 15. 受け入れ条件
+
+本設計への移行完了は、以下の条件を満たした時点とする。
+
+### 構造
+
+- [ ] AppStateが計算エンジンを保持していない。
+- [ ] AppStateが計算スレッドの実行資源を保持していない。
+- [ ] UIが計算エンジンや計算スレッドを直接操作していない。
+- [ ] 設定変更の処理がControllerに集約されている。
+- [ ] 計算の非同期実行がComputeManagerに集約されている。
+
+### 動作
+
+- [ ] フラクタルの種類を実行中に変更できる。
+- [ ] 配色を実行中に変更できる。
+- [ ] 配色変更時に不要な反復計算が発生しない。
+- [ ] 解像度およびアスペクト比を変更できる。
+- [ ] 計算中にGUI操作を継続できる。
+- [ ] 計算をキャンセルして新しい設定で再計算できる。
+- [ ] 古い計算結果が新しい画像を上書きしない。
+- [ ] 履歴から設定全体を復元できる。
+- [ ] エクスポート結果が画面表示用画像を変更しない。
+
+### 安全性・整合性
+
+- [ ] RenderedImageの解像度とRGBAデータの長さが一致する。
+- [ ] キャンセルされた計算の結果を採用しない。
+- [ ] 計算結果の世代番号が現在の世代番号と一致する場合だけ画像を更新する。
+- [ ] 無効な設定入力によって確定済み設定が破壊されない。
+- [ ] 計算エラーとキャンセルを区別できる。
+
+## 16. 将来拡張に関する方針
+
+本設計では、将来の機能追加に備えて以下の拡張性を確保する。
+
+- 数式入力による任意のDynamicsの追加
+- 新しいColoring方式およびPaletteの追加
+- 計算結果の保存・読み込み
+- 計算途中のプレビュー表示
+- タイル単位の部分描画
+- GPUを利用した計算処理
+- 高精度浮動小数点演算
+- 複数の画像・計算条件の管理
+
+ただし、これらの機能を実装するためだけに、初期段階から複雑な抽象化やプラグイン機構を導入してはならない。
+
+既存の責務分離を維持したまま、必要になった機能に対応するモジュールやデータ型を追加する。
+
+---
+
+## 17. 設計の要約
+
+本設計では、GUIアプリケーションを以下の構造に統一する。
+
+- **App**：アプリケーション全体の実行制御
+- **AppState**：設定およびアプリケーション状態の保持
+- **Controller**：ユーザー操作の処理と更新要求の決定
+- **ComputeManager**：計算処理の非同期実行管理
+- **UI**：画面表示とユーザー入力
+
+特に重要なのは、AppStateから計算エンジンを切り離すこと、ユーザー操作をActionとして扱うこと、計算要求を設定のスナップショットとして扱うことである。
+
+これにより、GUIの表示構造、設定管理、計算処理の実行方法をそれぞれ独立して変更できる構造とする。

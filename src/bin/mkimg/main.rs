@@ -1,9 +1,9 @@
 use etfra::prelude::*;
 
 fn main() {
-    let dynamics = BurningShip::new();
+    let dynamics = Phoenix::new();
 
-    let max_iter = 300;
+    let max_iter = 600;
     let escape_radius = 2.0;
     let escape_condition = EscapeByNorm { escape_radius };
     let escape_evaluator = EscapeByCount {
@@ -21,7 +21,7 @@ fn main() {
 
     let mut etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
 
-    let image_config = &ImageConfig { resolution: (300, 300), scale: (0.01, 0.01), center: (0., 0.) };
+    let image_config = &ImageConfig { resolution: (1024, 1024), scale: (0.001, 0.001), center: (0., 0.) };
     let escape_results = etf.escape_results_par(&image_config);
     let colors = etf.colors_from_escape_results(&escape_results);
     let img = etf.rgba_image_from_colors_par(&colors, image_config);
