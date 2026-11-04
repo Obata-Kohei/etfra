@@ -1,7 +1,8 @@
-use etfra::prelude::*;
+use etfra::{prelude::*, presets::custom_complex_dynamics::dynamics::CustomComplexDynamics};
 
 fn main() {
-    let dynamics = PerpendicularBurningShip::new();
+    let dynamics = CustomComplexDynamics::new("z^3 + c - conj(z)^2.1")
+                                                        .expect("Valid expr should be written...");
 
     let max_iter = 300;
     let escape_radius = 2.0;
@@ -22,7 +23,7 @@ fn main() {
 
     let mut etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
 
-    let image_config = &ImageConfig { resolution: (256, 256), scale: (0.01, 0.01), center: (0.0, 0.0) };
+    let image_config = &ImageConfig { resolution: (256, 256), scale: (0.009, 0.009), center: (0.0, 0.0) };
     let escape_results = etf.escape_results_par(&image_config);
     let colors = etf.colors_from_escape_results(&escape_results);
     let img = etf.rgba_image_from_colors_par(&colors, image_config);

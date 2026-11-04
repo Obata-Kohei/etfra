@@ -60,4 +60,26 @@ ops_factory!(
     Operator::make_unary("sqrt", |z| z.sqrt()),
     Operator::make_unary("conj", |z| z.conj()),
     Operator::make_unary("abs", |z| Complex::new(z.norm(), 0.0))
+
+    /*
+    // ランダム
+    // rand(z): [0, 1) の実数乱数を生成
+    Operator::make_unary("rand", |_| {
+        Complex::new(rand::random_range(0.0..1.0), 0.0)
+    }),
+
+    // randop(z1, z2): 二項演算をランダムに適用
+    Operator::make_bin("randop" BinOp {
+        apply: |a, b| match rand::random_range(0..5) {
+            0 => a + b,
+            1 => a - b,
+            2 => a * b,
+            3 => a / b,
+            4 => a.powc(b),
+        },
+        prio: 3,
+        is_commutative: false,
+    })
+    */
+
 );
