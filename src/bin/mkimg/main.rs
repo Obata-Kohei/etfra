@@ -1,7 +1,7 @@
 use etfra::{prelude::*, presets::custom_complex_dynamics::dynamics::CustomComplexDynamics};
 
 fn main() {
-    let dynamics = CustomComplexDynamics::new("z^3 + c - conj(z)^2.1")
+    let dynamics = CustomComplexDynamics::new("i*1.999999*sin(abs(z))^2 - conj(c)")
                                                         .expect("Valid expr should be written...");
 
     let max_iter = 300;

@@ -9,6 +9,7 @@ ops_factory!(
     // 定数
     Operator::make_constant("PI", Complex { re: 3.141592653589, im: 0.0 }),
     Operator::make_constant("E", Complex { re: 2.718281828459, im: 0.0 }),
+    Operator::make_constant("i", Complex { re: 0.0, im: 1.0 }),
 
     // 二項演算
     Operator::make_bin("+", BinOp {
