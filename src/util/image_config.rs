@@ -1,6 +1,7 @@
 use crate::prelude::*;
+use serde::{Serialize, Deserialize};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ImageConfig {
     pub resolution: (usize, usize), // (w, h)
     pub scale: (Float, Float),      // 1 pxあたりの座標平面の長さ．(x, y). F: Float?
