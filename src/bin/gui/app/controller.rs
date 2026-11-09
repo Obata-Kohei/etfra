@@ -10,19 +10,17 @@ use super::{
 pub enum UpdateRequired {
     #[default]
     None,
-    Recolor,
     Recompute,
 }
 
 impl UpdateRequired {
     /// 複数の更新要求を統合する。
-    /// Recompute > Recolor > None
+    /// Recompute > None
     pub fn merge(self, other: Self) -> Self {
         use UpdateRequired::*;
 
         match (self, other) {
             (Recompute, _) | (_, Recompute) => Recompute,
-            (Recolor, _) | (_, Recolor) => Recolor,
             _ => None,
         }
     }
@@ -241,15 +239,10 @@ fn classify_update(
         || old.max_iter != new.max_iter
         || old.escape_radius != new.escape_radius
         || old.render_mode != new.render_mode
-    {
-        return Recompute;
-    }
-
-    // 計算結果を再利用できる設定。
-    if old.color_map != new.color_map
+        || old.color_map != new.color_map
         || old.normalization != new.normalization
     {
-        return Recolor;
+        return Recompute;
     }
 
     None

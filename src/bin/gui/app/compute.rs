@@ -7,6 +7,11 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+use etfra::{dynamics::Dynamics, escape_evaluator, escape_time_fractal::EscapeTimeFractal, presets::complex_dynamics_presets::{BurningShip, Julia, Mandelbrot}};
+use num_complex::Complex;
+
+use crate::app::settings::DynamicsSettings;
+
 use super::{
     settings::AppSettings,
     state::RenderedImage,
@@ -215,5 +220,113 @@ impl Drop for ComputeManager {
             job.cancel.store(true, Ordering::Relaxed);
             let _ = job.handle.join();
         }
+    }
+}
+
+/// フラクタルの計算のためのComputeManager実装
+pub struct FractalBackend;
+
+impl FractalBackend {
+    pub fn render(
+        &self,
+        settings: &AppSettings,
+        cancel: &AtomicBool
+    ) -> Result<RenderedImage, ComputeError> {
+        let dynamics = self.build_dynamics(settings);
+        let escape_evaluator = self.build_escape_evaluator(settings);
+        let coloring = self.build_coloring(settings);
+        let mut etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
+
+        // 各ピクセルの脱出回数の計算
+        let results = etf
+            .escape_results_par_interruptible(&settings.image, cancel)
+            .ok_or(ComputeError::Cancelled)?;
+
+        if cancel.load(Ordering::Relaxed) {
+            return Err(ComputeError::Cancelled);
+        }
+
+        // 色に変換
+        let colors = etf.colors_from_escape_results(&results);
+
+        if cancel.load(Ordering::Relaxed) {
+            return Err(ComputeError::Cancelled);
+        }
+
+        // RGBAバッファに変換
+        let rgba = etf.rgba_buf_from_colors_par(&colors);
+        let image = RenderedImage {
+            resolution: settings.image.resolution,
+            rgba,
+        };
+
+        if !image.is_valid() {
+            return Err(ComputeError::InvalidImage);
+        }
+
+        Ok(image)
+    }
+
+    fn build_dynamics(&self, settings: &AppSettings) -> impl Dynamics {
+        match settings.dynamics {
+            DynamicsSettings::Mandelbrot => {
+                Mandelbrot::new()
+            }
+
+            DynamicsSettings::Julia { c_re, c_im } => {
+                let c = Complex::new(*c_re, *c_im);
+                Julia::new(c)
+            }
+
+            DynamicsSettings::BurningShip => {
+                BurningShip::new()
+            }
+
+            DynamicsSettings::Tricorn => {
+                Tricorn::new()
+            }
+
+            DynamicsSettings::Phoenix {
+                feedback_re,
+                feedback_im,
+            } => {
+                let feedback = Complex::new(*feedback_re, *feedback_im);
+                Phoenix::with_feedback(feedback)
+            }
+
+            DynamicsSettings::Multibrot { power } => {
+                Multibrot::new(*power)
+            }
+
+            DynamicsSettings::Custom { expression } => {
+                let dynamics = CustomComplexDynamics::new(expression)
+                    .map_err(|e| ComputeError::Failed(e.to_string()))?;
+
+                dynamics
+            }
+        }
+    }
+
+    fn build_escape_evaluator(
+        &self,
+        settings: &AppSettings,
+    ) -> {
+
+    }
+
+    fn build_coloring(
+        &self,
+        settings: &AppSettings,
+    )
+}
+
+impl ComputeBackend for FractalBackend {
+    fn compute(
+        &self,
+        settings: &AppSettings,
+        cancel: &AtomicBool,
+    ) -> Result<RenderedImage, ComputeError>
+    {
+        self.render(settings, cancel)
     }
 }
