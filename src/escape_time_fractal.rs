@@ -115,7 +115,8 @@ where
             .collect()
     }
 
-    pub fn colors_from_escape_results_par(&self, escape_results: &[EscapeResult]) -> Vec<Color> {
+    pub fn colors_from_escape_results_par(&mut self, escape_results: &[EscapeResult]) -> Vec<Color> {
+        self.coloring.normalizer.prepare(escape_results);
         escape_results
             .par_iter()
             .map(|esc_res| self.coloring.apply(&esc_res))
@@ -225,5 +226,25 @@ where
             Ok(v) => Some(v), // ラスタ順が保証された Vec<EscapeResult>
             Err(()) => None,  // キャンセル
         }
+    }
+
+    pub fn colors_from_escape_results_par_interruptible(&mut self, escape_results: &[EscapeResult], cancel: &AtomicBool) -> Option<Vec<Color>> {
+        self.coloring.normalizer.prepare(escape_results);
+
+        if cancel.load(Ordering::Relaxed) {
+            return None;
+        }
+        let colors: Option<Vec<Color>> = escape_results
+            .par_iter()
+            .map(|esc_res| {
+                if cancel.load(Ordering::Relaxed) {
+                    None
+                } else {
+                    Some(self.coloring.apply(&esc_res))
+                }
+            })
+            .collect();
+
+        colors
     }
 }

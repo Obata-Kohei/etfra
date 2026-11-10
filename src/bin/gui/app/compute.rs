@@ -7,13 +7,25 @@ use std::{
     thread::{self, JoinHandle},
 };
 
-use etfra::{dynamics::Dynamics, escape_evaluator, escape_time_fractal::EscapeTimeFractal, presets::complex_dynamics_presets::{BurningShip, Julia, Mandelbrot}};
 use num_complex::Complex;
+use rayon::prelude::*;
 
-use crate::app::settings::DynamicsSettings;
+use etfra::{
+    prelude::*,
+    dynamics::Dynamics, escape_evaluator::EscapeEvaluator, escape_time_fractal::EscapeTimeFractal,
+    presets::{
+        complex_dynamics_presets::{BurningShip, Julia, Mandelbrot},
+        custom_complex_dynamics::dynamics::CustomComplexDynamics,
+    },
+};
 
 use super::{
-    settings::AppSettings,
+    settings::{
+        DynamicsSettings,
+        ColorMapSettings,
+        NormalizationSettings,
+        AppSettings,
+    },
     state::RenderedImage,
 };
 
@@ -226,107 +238,185 @@ impl Drop for ComputeManager {
 /// フラクタルの計算のためのComputeManager実装
 pub struct FractalBackend;
 
-impl FractalBackend {
-    pub fn render(
-        &self,
-        settings: &AppSettings,
-        cancel: &AtomicBool
-    ) -> Result<RenderedImage, ComputeError> {
-        let dynamics = self.build_dynamics(settings);
-        let escape_evaluator = self.build_escape_evaluator(settings);
-        let coloring = self.build_coloring(settings);
-        let mut etf = EscapeTimeFractal::new(dynamics, escape_evaluator, coloring);
-
-        // 各ピクセルの脱出回数の計算
-        let results = etf
-            .escape_results_par_interruptible(&settings.image, cancel)
-            .ok_or(ComputeError::Cancelled)?;
-
-        if cancel.load(Ordering::Relaxed) {
-            return Err(ComputeError::Cancelled);
-        }
-
-        // 色に変換
-        let colors = etf.colors_from_escape_results(&results);
-
-        if cancel.load(Ordering::Relaxed) {
-            return Err(ComputeError::Cancelled);
-        }
-
-        // RGBAバッファに変換
-        let rgba = etf.rgba_buf_from_colors_par(&colors);
-        let image = RenderedImage {
-            resolution: settings.image.resolution,
-            rgba,
-        };
-
-        if !image.is_valid() {
-            return Err(ComputeError::InvalidImage);
-        }
-
-        Ok(image)
-    }
-
-    fn build_dynamics(&self, settings: &AppSettings) -> impl Dynamics {
-        match settings.dynamics {
-            DynamicsSettings::Mandelbrot => {
-                Mandelbrot::new()
-            }
-
-            DynamicsSettings::Julia { c_re, c_im } => {
-                let c = Complex::new(*c_re, *c_im);
-                Julia::new(c)
-            }
-
-            DynamicsSettings::BurningShip => {
-                BurningShip::new()
-            }
-
-            DynamicsSettings::Tricorn => {
-                Tricorn::new()
-            }
-
-            DynamicsSettings::Phoenix {
-                feedback_re,
-                feedback_im,
-            } => {
-                let feedback = Complex::new(*feedback_re, *feedback_im);
-                Phoenix::with_feedback(feedback)
-            }
-
-            DynamicsSettings::Multibrot { power } => {
-                Multibrot::new(*power)
-            }
-
-            DynamicsSettings::Custom { expression } => {
-                let dynamics = CustomComplexDynamics::new(expression)
-                    .map_err(|e| ComputeError::Failed(e.to_string()))?;
-
-                dynamics
-            }
-        }
-    }
-
-    fn build_escape_evaluator(
-        &self,
-        settings: &AppSettings,
-    ) -> {
-
-    }
-
-    fn build_coloring(
-        &self,
-        settings: &AppSettings,
-    )
-}
-
 impl ComputeBackend for FractalBackend {
     fn compute(
         &self,
         settings: &AppSettings,
         cancel: &AtomicBool,
-    ) -> Result<RenderedImage, ComputeError>
-    {
-        self.render(settings, cancel)
+    ) -> Result<RenderedImage, ComputeError> {
+        compute_dynamics(settings, cancel)
+    }
+}
+
+fn render_with<D, E, N>(
+    dynamics: D,
+    evaluator: E,
+    settings: &AppSettings,
+    cancel: &AtomicBool,
+    normalizer: N,
+) -> Result<RenderedImage, ComputeError>
+where
+    D: Dynamics + Send + Sync,
+    E: EscapeEvaluator<D> + Send + Sync,
+    N: NormalizeEscInfo<EscapeResult> + Send + Sync,
+{
+    let palette = match settings.color_map {
+        ColorMapSettings::Grayscale => Palette::grayscale(256),
+        ColorMapSettings::HueGradient => {
+            Palette::gradation_by_hue(256, 0.0, 360.0, 1.0, 1.0)
+        }
+    };
+
+    let coloring = Coloring {
+        normalizer,
+        color_map: ColorMapLinear { palette },
+    };
+
+    let escape_evaluator = EscapeByCount::new(
+        settings.max_iter,
+        EscapeByNorm::new(settings.escape_radius),
+    );
+
+    let mut etf = EscapeTimeFractal::new(
+        dynamics,
+        escape_evaluator,
+        coloring,
+    );
+
+    // 脱出回数を計算
+    let results = etf
+        .escape_results_par_interruptible(&settings.image, cancel)
+        .ok_or(ComputeError::Cancelled)?;
+
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ComputeError::Cancelled);
+    }
+
+    // Normalizerの準備と並列配色
+    let colors = etf.colors_from_escape_results_par_interruptible(&results, cancel)
+        .ok_or(ComputeError::Cancelled)?;
+
+    // RGBAバッファへ変換
+    let rgba = etf.rgba_buf_from_colors_par(&colors);
+
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ComputeError::Cancelled);
+    }
+
+    let image = RenderedImage {
+        resolution: settings.image.resolution,
+        rgba,
+    };
+
+    if !image.is_valid() {
+        return Err(ComputeError::InvalidImage);
+    }
+
+    Ok(image)
+}
+
+fn render_with_normalization<D, E>(
+    dynamics: D,
+    evaluator: E,
+    settings: &AppSettings,
+    cancel: &AtomicBool,
+) -> Result<RenderedImage, ComputeError>
+where
+    D: Dynamics + Send + Sync,
+    E: EscapeEvaluator<D> + Send + Sync
+{
+    match settings.normalization {
+        NormalizationSettings::MaxIterations => {
+            render_with(
+                dynamics,
+                evaluator,
+                settings,
+                cancel,
+                NormalizeWithMaxIter {
+                    max_iter: settings.max_iter,
+                },
+            )
+        }
+
+        NormalizationSettings::Histogram => {
+            render_with(
+                dynamics,
+                evaluator,
+                settings,
+                cancel,
+                NormalizeWithHistgram::new(settings.max_iter),
+            )
+        }
+    }
+}
+
+fn compute_dynamics(
+    settings: &AppSettings,
+    cancel: &AtomicBool,
+) -> Result<RenderedImage, ComputeError> {
+    match &settings.dynamics {
+        DynamicsSettings::Mandelbrot => {
+            render_with_normalization(
+                Mandelbrot::new(),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::Julia { c_re, c_im } => {
+            render_with_normalization(
+                Julia::new(Complex::new(*c_re, *c_im)),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::BurningShip => {
+            render_with_normalization(
+                BurningShip::new(),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::Tricorn => {
+            render_with_normalization(
+                Tricorn::new(),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::Phoenix {
+            feedback_re,
+            feedback_im,
+        } => {
+            render_with_normalization(
+                Phoenix::with_feedback(
+                    Complex::new(*feedback_re, *feedback_im),
+                ),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::Multibrot { power } => {
+            render_with_normalization(
+                Multibrot::new(*power),
+                settings,
+                cancel,
+            )
+        }
+
+        DynamicsSettings::Custom { expression } => {
+            let dynamics = CustomComplexDynamics::new(expression)
+                .map_err(|e| ComputeError::Failed(e.to_string()))?;
+
+            render_with_normalization(
+                dynamics,
+                settings,
+                cancel,
+            )
+        }
     }
 }
