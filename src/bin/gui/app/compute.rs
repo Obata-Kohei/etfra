@@ -235,7 +235,10 @@ impl Drop for ComputeManager {
     }
 }
 
-/// フラクタルの計算のためのComputeManager実装
+/// フラクタルを計算するComputeBackend実装。
+///
+/// 設定を具体的な描画処理へ変換し、RenderedImageを返す。
+/// スレッド管理やGUIへの表示は行わない。
 pub struct FractalBackend;
 
 impl ComputeBackend for FractalBackend {
@@ -244,22 +247,30 @@ impl ComputeBackend for FractalBackend {
         settings: &AppSettings,
         cancel: &AtomicBool,
     ) -> Result<RenderedImage, ComputeError> {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(ComputeError::Cancelled);
+        }
+
         compute_dynamics(settings, cancel)
     }
 }
 
-fn render_with<D, E, N>(
+/// Dynamics、Normalizer、ColorMapを使って描画する。
+fn render_with<D, N>(
     dynamics: D,
-    evaluator: E,
     settings: &AppSettings,
     cancel: &AtomicBool,
     normalizer: N,
 ) -> Result<RenderedImage, ComputeError>
 where
     D: Dynamics + Send + Sync,
-    E: EscapeEvaluator<D> + Send + Sync,
+    EscapeByCount<EscapeByNorm>: EscapeEvaluator<D> + Send + Sync,
     N: NormalizeEscInfo<EscapeResult> + Send + Sync,
 {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ComputeError::Cancelled);
+    }
+
     let palette = match settings.color_map {
         ColorMapSettings::Grayscale => Palette::grayscale(256),
         ColorMapSettings::HueGradient => {
@@ -272,19 +283,17 @@ where
         color_map: ColorMapLinear { palette },
     };
 
-    let escape_evaluator = EscapeByCount::new(
+    // EscapeByNormはComplex<Float>とState2ndOrderの両方に対応するため、
+    // Phoenixを含む各Dynamicsで同じEvaluatorを利用できる。
+    let evaluator = EscapeByCount::new(
         settings.max_iter,
         EscapeByNorm::new(settings.escape_radius),
     );
 
-    let mut etf = EscapeTimeFractal::new(
-        dynamics,
-        escape_evaluator,
-        coloring,
-    );
+    let mut fractal = EscapeTimeFractal::new(dynamics, evaluator, coloring);
 
-    // 脱出回数を計算
-    let results = etf
+    // 全ピクセルの脱出結果を先に計算する。
+    let escape_results = fractal
         .escape_results_par_interruptible(&settings.image, cancel)
         .ok_or(ComputeError::Cancelled)?;
 
@@ -292,18 +301,39 @@ where
         return Err(ComputeError::Cancelled);
     }
 
-    // Normalizerの準備と並列配色
-    let colors = etf.colors_from_escape_results_par_interruptible(&results, cancel)
+    // Normalizerの準備は全ピクセルの結果を使って一度行い、その後に色変換する。
+    let colors = fractal
+        .colors_from_escape_results_par_interruptible(&escape_results, cancel)
         .ok_or(ComputeError::Cancelled)?;
 
-    // RGBAバッファへ変換
-    let rgba = etf.rgba_buf_from_colors_par(&colors);
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ComputeError::Cancelled);
+    }
+
+    // RGBA変換中も各ピクセルでキャンセルを確認する。
+    let pixels: Option<Vec<[u8; 4]>> = colors
+        .par_iter()
+        .map(|color| {
+            if cancel.load(Ordering::Relaxed) {
+                None
+            } else {
+                Some(*color.as_rgba())
+            }
+        })
+        .collect();
+
+    let pixels = pixels.ok_or(ComputeError::Cancelled)?;
+    let rgba = pixels
+        .into_iter()
+        .flat_map(|pixel| pixel.into_iter())
+        .collect();
 
     if cancel.load(Ordering::Relaxed) {
         return Err(ComputeError::Cancelled);
     }
 
     let image = RenderedImage {
+        // RenderModeによる解像度決定は行わず、設定値をそのまま使う。
         resolution: settings.image.resolution,
         rgba,
     };
@@ -315,108 +345,81 @@ where
     Ok(image)
 }
 
-fn render_with_normalization<D, E>(
+/// NormalizationSettingsに応じたNormalizerを選んで描画する。
+fn render_with_normalization<D>(
     dynamics: D,
-    evaluator: E,
     settings: &AppSettings,
     cancel: &AtomicBool,
 ) -> Result<RenderedImage, ComputeError>
 where
     D: Dynamics + Send + Sync,
-    E: EscapeEvaluator<D> + Send + Sync
+    EscapeByCount<EscapeByNorm>: EscapeEvaluator<D> + Send + Sync,
 {
     match settings.normalization {
-        NormalizationSettings::MaxIterations => {
-            render_with(
-                dynamics,
-                evaluator,
-                settings,
-                cancel,
-                NormalizeWithMaxIter {
-                    max_iter: settings.max_iter,
-                },
-            )
-        }
+        NormalizationSettings::MaxIterations => render_with(
+            dynamics,
+            settings,
+            cancel,
+            NormalizeWithMaxIter {
+                max_iter: settings.max_iter,
+            },
+        ),
 
-        NormalizationSettings::Histogram => {
-            render_with(
-                dynamics,
-                evaluator,
-                settings,
-                cancel,
-                NormalizeWithHistgram::new(settings.max_iter),
-            )
-        }
+        NormalizationSettings::Histogram => render_with(
+            dynamics,
+            settings,
+            cancel,
+            NormalizeWithHistgram::new(settings.max_iter),
+        ),
     }
 }
 
+/// DynamicsSettingsから具体的なDynamicsを選んで描画する。
 fn compute_dynamics(
     settings: &AppSettings,
     cancel: &AtomicBool,
 ) -> Result<RenderedImage, ComputeError> {
+    if cancel.load(Ordering::Relaxed) {
+        return Err(ComputeError::Cancelled);
+    }
+
     match &settings.dynamics {
         DynamicsSettings::Mandelbrot => {
-            render_with_normalization(
-                Mandelbrot::new(),
-                settings,
-                cancel,
-            )
+            render_with_normalization(Mandelbrot::new(), settings, cancel)
         }
 
-        DynamicsSettings::Julia { c_re, c_im } => {
-            render_with_normalization(
-                Julia::new(Complex::new(*c_re, *c_im)),
-                settings,
-                cancel,
-            )
-        }
+        DynamicsSettings::Julia { c_re, c_im } => render_with_normalization(
+            Julia::new(Complex::new(*c_re, *c_im)),
+            settings,
+            cancel,
+        ),
 
         DynamicsSettings::BurningShip => {
-            render_with_normalization(
-                BurningShip::new(),
-                settings,
-                cancel,
-            )
+            render_with_normalization(BurningShip::new(), settings, cancel)
         }
 
         DynamicsSettings::Tricorn => {
-            render_with_normalization(
-                Tricorn::new(),
-                settings,
-                cancel,
-            )
+            render_with_normalization(Tricorn::new(), settings, cancel)
         }
 
         DynamicsSettings::Phoenix {
             feedback_re,
             feedback_im,
-        } => {
-            render_with_normalization(
-                Phoenix::with_feedback(
-                    Complex::new(*feedback_re, *feedback_im),
-                ),
-                settings,
-                cancel,
-            )
-        }
+        } => render_with_normalization(
+            Phoenix::with_feedback(Complex::new(*feedback_re, *feedback_im)),
+            settings,
+            cancel,
+        ),
 
         DynamicsSettings::Multibrot { power } => {
-            render_with_normalization(
-                Multibrot::new(*power),
-                settings,
-                cancel,
-            )
+            render_with_normalization(Multibrot::new(*power), settings, cancel)
         }
 
         DynamicsSettings::Custom { expression } => {
             let dynamics = CustomComplexDynamics::new(expression)
-                .map_err(|e| ComputeError::Failed(e.to_string()))?;
+                .map_err(|error| ComputeError::Failed(error.to_string()))?;
 
-            render_with_normalization(
-                dynamics,
-                settings,
-                cancel,
-            )
+            render_with_normalization(dynamics, settings, cancel)
         }
     }
 }
