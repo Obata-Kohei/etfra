@@ -5,5 +5,6 @@ pub mod state;
 pub mod controller;
 pub mod compute;
 pub mod export;
+pub mod render_config;
 pub mod key_input;
 pub mod ui;

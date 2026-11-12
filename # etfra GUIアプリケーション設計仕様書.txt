@@ -79,6 +79,8 @@ src/
 │   ├── settings.rs
 │   ├── controller.rs
 │   ├── compute.rs
+│   ├── export.rs
+│   ├── render_config.rs
 │   ├── history.rs
 │   └── ui/
 │       ├── mod.rs
@@ -139,10 +141,14 @@ src/
 - Dynamicsの種類およびパラメータ
 - Coloringの種類およびパラメータ
 - ImageConfig
+- アスペクト比
+- RenderMode
 - 最大反復回数などの計算条件
 - その他、フラクタル計算に必要な設定
 
 設定は、計算要求を生成する際に複製可能なデータとして定義する。
+
+Burstの長辺解像度は512pxとし、Surveyはその半分とする。アスペクト比は既約比の値型として保持し、プリセットを追加できる構造にする。
 
 #### app/controller.rs
 
@@ -178,6 +184,16 @@ ControllerはeguiのUI部品を直接操作してはならない。
 計算エンジンの生成は、このモジュールまたはcore側のFactoryに集約する。
 
 UIやAppStateに計算エンジンを返却する設計にしてはならない。
+
+#### app/render_config.rs
+
+AppSettingsと描画対象から、描画時に使う解像度およびImageConfigを算出する。
+
+Survey/Burstやエクスポートの解像度が変わっても横方向の表示範囲を保つよう、実効解像度に合わせてscaleを再計算する。
+
+#### app/export.rs
+
+Burstを既定とする独立したエクスポート計算と、生成画像の保存を担当する。
 
 #### app/history.rs
 
@@ -587,7 +603,7 @@ Actionを追加する場合、UIとControllerの対応部分を追加する。
 
 エクスポート要求時点のAppSettingsをスナップショットとして取得する。
 
-エクスポート用の解像度を指定し、指定された解像度で画像を生成・保存する。
+既定では選択中のアスペクト比に応じたBurst解像度（長辺512px）で画像を生成・保存する。任意の幅・高さを指定した場合は、その解像度を使う。
 
 ### 9.2. 計算処理との分離
 
@@ -610,7 +626,7 @@ pub enum ExportState {
 
 エクスポートの進行状態および結果を管理する。
 
-エクスポート処理の実行管理はComputeManagerとは分離してもよいが、計算処理との共通部分が十分に多い場合は、共通の非同期タスク管理機構を利用してよい。
+エクスポート処理の実行管理はプレビュー用ComputeManagerと分離する。計算処理の共通部分は再利用してよいが、要求・結果・状態は独立させる。
 
 ただし、画面表示用計算とエクスポート処理の状態は区別する。
 
@@ -728,7 +744,7 @@ impl eframe::App for App {
 1. UIが解像度またはアスペクト比を受け付ける。
 2. 対応するActionを生成する。
 3. ControllerがImageConfigを更新する。
-4. 必要な表示範囲とscaleを再計算する。
+4. 中心と横方向の表示範囲を保ち、アスペクト比に応じて縦方向の範囲とscaleを再計算する。
 5. UpdateRequired::Recomputeを発行する。
 6. 新しい解像度で計算する。
 7. 結果を受け取り、RenderedImageを更新する。

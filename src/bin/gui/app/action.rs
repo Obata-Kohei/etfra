@@ -1,7 +1,7 @@
 use etfra::util::types::Float;
 
 use super::settings::{
-    AppSettings, ColorMapSettings, DynamicsSettings,
+    AppSettings, AspectRatio, ColorMapSettings, DynamicsSettings,
     NormalizationSettings, RenderMode,
 };
 
@@ -40,6 +40,7 @@ pub enum AppAction {
 
     // UIで選択・編集された設定を反映する。
     SetDynamics(DynamicsSettings),
+    SetAspectRatio(AspectRatio),
     SetColorMap(ColorMapSettings),
     SetNormalization(NormalizationSettings),
     SetRenderMode(RenderMode),

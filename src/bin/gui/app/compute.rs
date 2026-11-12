@@ -26,6 +26,7 @@ use super::{
         NormalizationSettings,
         AppSettings,
     },
+    render_config::{resolve_image_config, RenderTarget},
     state::RenderedImage,
 };
 
@@ -36,6 +37,7 @@ use super::{
 pub struct ComputeRequest {
     pub generation: u64,
     pub settings: AppSettings,
+    pub target: RenderTarget,
 }
 
 /// 計算結果。
@@ -65,6 +67,7 @@ pub trait ComputeBackend: Send + Sync + 'static {
     fn compute(
         &self,
         settings: &AppSettings,
+        target: RenderTarget,
         cancel: &AtomicBool,
     ) -> Result<RenderedImage, ComputeError>;
 }
@@ -104,6 +107,15 @@ impl ComputeManager {
     ///
     /// 戻り値は要求のgeneration。
     pub fn request(&mut self, settings: AppSettings) -> u64 {
+        self.request_for_target(settings, RenderTarget::Preview)
+    }
+
+    /// 描画対象を指定して計算を登録する。
+    pub(crate) fn request_for_target(
+        &mut self,
+        settings: AppSettings,
+        target: RenderTarget,
+    ) -> u64 {
         self.next_generation = self
             .next_generation
             .checked_add(1)
@@ -112,6 +124,7 @@ impl ComputeManager {
         let request = ComputeRequest {
             generation: self.next_generation,
             settings,
+            target,
         };
 
         let generation = request.generation;
@@ -195,6 +208,7 @@ impl ComputeManager {
         let handle = thread::spawn(move || {
             let mut result = backend.compute(
                 &request.settings,
+                request.target,
                 &worker_cancel,
             );
 
@@ -245,13 +259,16 @@ impl ComputeBackend for FractalBackend {
     fn compute(
         &self,
         settings: &AppSettings,
+        target: RenderTarget,
         cancel: &AtomicBool,
     ) -> Result<RenderedImage, ComputeError> {
         if cancel.load(Ordering::Relaxed) {
             return Err(ComputeError::Cancelled);
         }
 
-        compute_dynamics(settings, cancel)
+        let image_config = resolve_image_config(settings, target)
+            .map_err(|error| ComputeError::Failed(error.to_string()))?;
+        compute_dynamics(settings, &image_config, cancel)
     }
 }
 
@@ -259,6 +276,7 @@ impl ComputeBackend for FractalBackend {
 fn render_with<D, N>(
     dynamics: D,
     settings: &AppSettings,
+    image_config: &ImageConfig,
     cancel: &AtomicBool,
     normalizer: N,
 ) -> Result<RenderedImage, ComputeError>
@@ -294,7 +312,7 @@ where
 
     // 全ピクセルの脱出結果を先に計算する。
     let escape_results = fractal
-        .escape_results_par_interruptible(&settings.image, cancel)
+        .escape_results_par_interruptible(image_config, cancel)
         .ok_or(ComputeError::Cancelled)?;
 
     if cancel.load(Ordering::Relaxed) {
@@ -333,8 +351,7 @@ where
     }
 
     let image = RenderedImage {
-        // RenderModeによる解像度決定は行わず、設定値をそのまま使う。
-        resolution: settings.image.resolution,
+        resolution: image_config.resolution,
         rgba,
     };
 
@@ -349,6 +366,7 @@ where
 fn render_with_normalization<D>(
     dynamics: D,
     settings: &AppSettings,
+    image_config: &ImageConfig,
     cancel: &AtomicBool,
 ) -> Result<RenderedImage, ComputeError>
 where
@@ -359,6 +377,7 @@ where
         NormalizationSettings::MaxIterations => render_with(
             dynamics,
             settings,
+            image_config,
             cancel,
             NormalizeWithMaxIter {
                 max_iter: settings.max_iter,
@@ -368,6 +387,7 @@ where
         NormalizationSettings::Histogram => render_with(
             dynamics,
             settings,
+            image_config,
             cancel,
             NormalizeWithHistgram::new(settings.max_iter),
         ),
@@ -377,6 +397,7 @@ where
 /// DynamicsSettingsから具体的なDynamicsを選んで描画する。
 fn compute_dynamics(
     settings: &AppSettings,
+    image_config: &ImageConfig,
     cancel: &AtomicBool,
 ) -> Result<RenderedImage, ComputeError> {
     if cancel.load(Ordering::Relaxed) {
@@ -385,21 +406,22 @@ fn compute_dynamics(
 
     match &settings.dynamics {
         DynamicsSettings::Mandelbrot => {
-            render_with_normalization(Mandelbrot::new(), settings, cancel)
+            render_with_normalization(Mandelbrot::new(), settings, image_config, cancel)
         }
 
         DynamicsSettings::Julia { c_re, c_im } => render_with_normalization(
             Julia::new(Complex::new(*c_re, *c_im)),
             settings,
+            image_config,
             cancel,
         ),
 
         DynamicsSettings::BurningShip => {
-            render_with_normalization(BurningShip::new(), settings, cancel)
+            render_with_normalization(BurningShip::new(), settings, image_config, cancel)
         }
 
         DynamicsSettings::Tricorn => {
-            render_with_normalization(Tricorn::new(), settings, cancel)
+            render_with_normalization(Tricorn::new(), settings, image_config, cancel)
         }
 
         DynamicsSettings::Phoenix {
@@ -408,18 +430,19 @@ fn compute_dynamics(
         } => render_with_normalization(
             Phoenix::with_feedback(Complex::new(*feedback_re, *feedback_im)),
             settings,
+            image_config,
             cancel,
         ),
 
         DynamicsSettings::Multibrot { power } => {
-            render_with_normalization(Multibrot::new(*power), settings, cancel)
+            render_with_normalization(Multibrot::new(*power), settings, image_config, cancel)
         }
 
         DynamicsSettings::Custom { expression } => {
             let dynamics = CustomComplexDynamics::new(expression)
                 .map_err(|error| ComputeError::Failed(error.to_string()))?;
 
-            render_with_normalization(dynamics, settings, cancel)
+            render_with_normalization(dynamics, settings, image_config, cancel)
         }
     }
 }

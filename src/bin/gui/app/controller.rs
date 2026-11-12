@@ -1,7 +1,7 @@
 
 use super::{
     action::{AppAction, Direction, SettingsPanel},
-    settings::AppSettings,
+    settings::{AppSettings, AspectRatio, BURST_LONG_EDGE},
     state::{AppState, ComputeStatus},
 };
 
@@ -124,6 +124,13 @@ impl Controller {
                     self.apply_settings(settings, state);
             }
 
+            AppAction::SetAspectRatio(value) => {
+                let mut settings = state.settings.clone();
+                set_aspect_ratio(&mut settings, value);
+                output.update_required =
+                    self.apply_settings(settings, state);
+            }
+
             AppAction::SetColorMap(value) => {
                 let mut settings = state.settings.clone();
                 settings.color_map = value;
@@ -236,6 +243,7 @@ fn classify_update(
     // 計算結果そのものに影響する設定。
     if old.dynamics != new.dynamics
         || old.image != new.image
+        || old.aspect_ratio != new.aspect_ratio
         || old.max_iter != new.max_iter
         || old.escape_radius != new.escape_radius
         || old.render_mode != new.render_mode
@@ -250,12 +258,11 @@ fn classify_update(
 
 /// 表示範囲を移動する。
 fn move_view(settings: &mut AppSettings, direction: Direction) {
-    let (width, height) = settings.image.resolution;
-    let (sx, sy) = settings.image.scale;
+    let (view_width, view_height) = settings.image.view_size();
 
     // 画面サイズの10%を移動量とする。
-    let dx = sx * width as f64 * 0.1;
-    let dy = sy * height as f64 * 0.1;
+    let dx = view_width * 0.1;
+    let dy = view_height * 0.1;
 
     match direction {
         Direction::Up => settings.image.center.1 += dy,
@@ -265,8 +272,65 @@ fn move_view(settings: &mut AppSettings, direction: Direction) {
     }
 }
 
+/// アスペクト比を変更し、中心と横方向の表示範囲を保つ。
+fn set_aspect_ratio(settings: &mut AppSettings, aspect_ratio: AspectRatio) {
+    let view_width = settings.image.view_size().0;
+    let resolution = aspect_ratio
+        .dimensions_for_long_edge(BURST_LONG_EDGE)
+        .expect("Burst resolution must have a nonzero long edge");
+    let pixel_scale = view_width / resolution.0 as f64;
+
+    settings.aspect_ratio = aspect_ratio;
+    settings.image.resolution = resolution;
+    settings.image.scale = (pixel_scale, pixel_scale);
+}
+
 /// 表示範囲を拡大・縮小する。
 fn zoom_view(settings: &mut AppSettings, factor: f64) {
     settings.image.scale.0 *= factor;
     settings.image.scale.1 *= factor;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn changing_aspect_ratio_preserves_center_and_horizontal_view_width() {
+        let mut state = AppState::default();
+        let initial_center = state.settings.image.center;
+        let initial_view_width = state.settings.image.view_size().0;
+        let mut controller = Controller;
+
+        let output = controller.process_actions(
+            [AppAction::SetAspectRatio(AspectRatio::LANDSCAPE_16_9)],
+            &mut state,
+        );
+
+        assert_eq!(output.update_required, UpdateRequired::Recompute);
+        assert_eq!(state.settings.image.resolution, (512, 288));
+        assert_eq!(state.settings.image.center, initial_center);
+        assert_eq!(state.settings.image.view_size().0, initial_view_width);
+        assert_eq!(
+            state.settings.image.view_size().1,
+            initial_view_width * 288.0 / 512.0
+        );
+    }
+
+    #[test]
+    fn aspect_ratio_change_can_be_undone() {
+        let mut state = AppState::default();
+        let initial_settings = state.settings.clone();
+        let mut controller = Controller;
+
+        controller.process_actions(
+            [AppAction::SetAspectRatio(AspectRatio::PORTRAIT_3_4)],
+            &mut state,
+        );
+        let output =
+            controller.process_actions([AppAction::Undo], &mut state);
+
+        assert_eq!(output.update_required, UpdateRequired::Recompute);
+        assert_eq!(state.settings, initial_settings);
+    }
 }
