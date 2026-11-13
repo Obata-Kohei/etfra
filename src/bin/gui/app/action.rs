@@ -1,8 +1,10 @@
 use etfra::util::types::Float;
 
-use super::settings::{
-    AppSettings, AspectRatio, ColorMapSettings, DynamicsSettings,
-    NormalizationSettings, RenderMode,
+use super::{
+    render_config::{AspectRatio, RenderMode},
+    settings::{
+        AppSettings, ColorMapSettings, DynamicsSettings, NormalizationSettings,
+    },
 };
 
 /// キー入力・UI操作をアプリケーションの操作へ変換したもの。

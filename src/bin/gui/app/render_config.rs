@@ -1,34 +1,201 @@
 use etfra::prelude::*;
+use serde::{de, Deserialize, Deserializer, Serialize};
 
 use super::settings::{AppSettings, BURST_LONG_EDGE};
+
+/// 画像の縦横比。値は既約比に正規化する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct AspectRatio {
+    width: u32,
+    height: u32,
+}
+
+impl AspectRatio {
+    pub const SQUARE: Self = Self {
+        width: 1,
+        height: 1,
+    };
+    pub const LANDSCAPE_4_3: Self = Self {
+        width: 4,
+        height: 3,
+    };
+    pub const LANDSCAPE_16_9: Self = Self {
+        width: 16,
+        height: 9,
+    };
+    pub const PORTRAIT_3_4: Self = Self {
+        width: 3,
+        height: 4,
+    };
+    pub const PORTRAIT_9_16: Self = Self {
+        width: 9,
+        height: 16,
+    };
+
+    /// 設定UIに表示する比率プリセット。
+    pub const PRESETS: &[Self] = &[
+        Self::SQUARE,
+        Self::LANDSCAPE_4_3,
+        Self::LANDSCAPE_16_9,
+        Self::PORTRAIT_3_4,
+        Self::PORTRAIT_9_16,
+    ];
+
+    pub fn new(width: u32, height: u32) -> Option<Self> {
+        if width == 0 || height == 0 {
+            return None;
+        }
+
+        let divisor = gcd(width, height);
+        Some(Self {
+            width: width / divisor,
+            height: height / divisor,
+        })
+    }
+
+    pub fn width(self) -> u32 {
+        self.width
+    }
+
+    pub fn height(self) -> u32 {
+        self.height
+    }
+
+    /// 長辺を指定したときのピクセル寸法を返す。
+    pub fn dimensions_for_long_edge(self, long_edge: usize) -> Option<(usize, usize)> {
+        dimensions_for_ratio(self.width, self.height, long_edge)
+    }
+}
+
+impl Default for AspectRatio {
+    fn default() -> Self {
+        Self::SQUARE
+    }
+}
+
+impl<'de> Deserialize<'de> for AspectRatio {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        struct SerializedAspectRatio {
+            width: u32,
+            height: u32,
+        }
+
+        let ratio = SerializedAspectRatio::deserialize(deserializer)?;
+        Self::new(ratio.width, ratio.height).ok_or_else(|| {
+            de::Error::custom("アスペクト比の幅と高さは1以上である必要があります")
+        })
+    }
+}
+
+fn gcd(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        let remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    a
+}
+
+fn dimensions_for_ratio(
+    width_ratio: u32,
+    height_ratio: u32,
+    long_edge: usize,
+) -> Option<(usize, usize)> {
+    if long_edge == 0 {
+        return None;
+    }
+
+    let (long_ratio, short_ratio) = if width_ratio >= height_ratio {
+        (width_ratio, height_ratio)
+    } else {
+        (height_ratio, width_ratio)
+    };
+    let short_edge = (long_edge as u128)
+        .checked_mul(short_ratio as u128)?
+        .checked_add(long_ratio as u128 / 2)?
+        .checked_div(long_ratio as u128)?;
+    let short_edge = usize::try_from(short_edge).ok()?.max(1);
+
+    if width_ratio >= height_ratio {
+        Some((long_edge, short_edge))
+    } else {
+        Some((short_edge, long_edge))
+    }
+}
+
+/// プレビュー品質を指定する。解像度自体はAppSettings.image.resolutionに保持する。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RenderMode {
+    Survey,
+    Burst,
+}
+
+impl RenderMode {
+    /// SurveyはBurstの長辺解像度の半分で描画する。
+    pub const fn long_edge(self) -> usize {
+        match self {
+            Self::Survey => BURST_LONG_EDGE / 2,
+            Self::Burst => BURST_LONG_EDGE,
+        }
+    }
+}
+
+/// 既存解像度の比率を保ったまま、長辺を指定値に変更する。
+pub fn dimensions_for_long_edge(
+    resolution: (usize, usize),
+    long_edge: usize,
+) -> Option<(usize, usize)> {
+    if resolution.0 == 0 || resolution.1 == 0 {
+        return None;
+    }
+
+    let (long_ratio, short_ratio) = if resolution.0 >= resolution.1 {
+        (resolution.0, resolution.1)
+    } else {
+        (resolution.1, resolution.0)
+    };
+    if long_edge == 0 {
+        return None;
+    }
+
+    let short_edge = (long_edge as u128)
+        .checked_mul(short_ratio as u128)?
+        .checked_add(long_ratio as u128 / 2)?
+        .checked_div(long_ratio as u128)?;
+    let short_edge = usize::try_from(short_edge).ok()?.max(1);
+
+    if resolution.0 >= resolution.1 {
+        Some((long_edge, short_edge))
+    } else {
+        Some((short_edge, long_edge))
+    }
+}
 
 /// プレビューとエクスポートで使う解像度の選択方法。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderTarget {
     Preview,
-    /// `None`は選択中の比率でBurst解像度、`Some`は比率も上書きする幅・高さ指定。
+    /// `None`は現在の解像度から導出したBurst解像度、`Some`は任意の幅・高さ。
     Export {
         resolution: Option<(usize, usize)>,
     },
 }
 
-/// 設定値から描画時に使う画像設定を解決する。
-///
-/// 保存されたBurst基準の表示範囲を保ちながら、出力解像度に応じて
-/// 1ピクセルあたりの座標スケールを再計算する。
+/// 保存された実解像度と表示範囲から描画時の画像設定を解決する。
 pub fn resolve_image_config(
     settings: &AppSettings,
     target: RenderTarget,
 ) -> Result<ImageConfig, RenderConfigError> {
     let resolution = match target {
-        RenderTarget::Preview => settings
-            .aspect_ratio
-            .dimensions_for_long_edge(settings.render_mode.long_edge())
-            .ok_or(RenderConfigError::InvalidResolution)?,
-        RenderTarget::Export { resolution: None } => settings
-            .aspect_ratio
-            .dimensions_for_long_edge(BURST_LONG_EDGE)
-            .ok_or(RenderConfigError::InvalidResolution)?,
+        RenderTarget::Preview => settings.image.resolution,
+        RenderTarget::Export { resolution: None } => {
+            dimensions_for_long_edge(settings.image.resolution, BURST_LONG_EDGE)
+                .ok_or(RenderConfigError::InvalidResolution)?
+        }
         RenderTarget::Export {
             resolution: Some(resolution),
         } => resolution,
@@ -77,31 +244,23 @@ impl std::error::Error for RenderConfigError {}
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app::settings::{AspectRatio, RenderMode};
 
     #[test]
-    fn preview_resolution_uses_quality_mode_and_aspect_ratio() {
+    fn preview_uses_the_stored_resolution() {
         let mut settings = AppSettings::default();
-        settings.aspect_ratio = AspectRatio::LANDSCAPE_16_9;
-        settings.image.resolution = (512, 288);
-        settings.image.scale = (3.0 / 512.0, 3.0 / 512.0);
+        settings.image.resolution = (256, 144);
+        settings.image.scale = (3.0 / 256.0, 3.0 / 256.0);
 
-        let survey = resolve_image_config(&settings, RenderTarget::Preview).unwrap();
-        assert_eq!(survey.resolution, (256, 144));
-        assert_eq!(survey.view_size(), (3.0, 3.0 * 144.0 / 256.0));
-
-        settings.render_mode = RenderMode::Burst;
-        let burst = resolve_image_config(&settings, RenderTarget::Preview).unwrap();
-        assert_eq!(burst.resolution, (512, 288));
-        assert_eq!(burst.view_size(), (3.0, 3.0 * 288.0 / 512.0));
+        let preview = resolve_image_config(&settings, RenderTarget::Preview).unwrap();
+        assert_eq!(preview.resolution, (256, 144));
+        assert_eq!(preview.view_size(), (3.0, 3.0 * 144.0 / 256.0));
     }
 
     #[test]
     fn export_defaults_to_burst_and_accepts_custom_dimensions() {
         let mut settings = AppSettings::default();
-        settings.aspect_ratio = AspectRatio::PORTRAIT_9_16;
-        settings.image.resolution = (288, 512);
-        settings.image.scale = (3.0 / 288.0, 3.0 / 288.0);
+        settings.image.resolution = (144, 256);
+        settings.image.scale = (3.0 / 144.0, 3.0 / 144.0);
 
         let default_export = resolve_image_config(
             &settings,

@@ -10,9 +10,9 @@ use super::{
     state::RenderedImage,
 };
 
-/// エクスポート解像度。未指定なら選択中の比率でBurst解像度を使う。
+/// エクスポート解像度。未指定なら現在の解像度から導出したBurst解像度を使う。
 ///
-/// 指定時は任意の幅・高さを使い、選択中のアスペクト比よりこちらを優先する。
+/// 指定時は自動導出される比率にかかわらず、任意の幅・高さを使う。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct ExportOptions {
     pub resolution: Option<(usize, usize)>,

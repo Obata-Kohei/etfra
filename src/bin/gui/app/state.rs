@@ -1,5 +1,8 @@
 
-use super::settings::AppSettings;
+use super::{
+    render_config::RenderMode,
+    settings::AppSettings,
+};
 
 /// 計算処理の状態
 #[derive(Debug, Clone, PartialEq)]
@@ -44,22 +47,34 @@ pub enum ExportState {
 /// 設定履歴
 #[derive(Debug, Default)]
 pub struct History {
-    entries: Vec<AppSettings>,
+    entries: Vec<SettingsSnapshot>,
+}
+
+#[derive(Debug)]
+struct SettingsSnapshot {
+    settings: AppSettings,
+    render_mode: RenderMode,
 }
 
 impl History {
-    pub fn push(&mut self, settings: &AppSettings) {
-        self.entries.push(settings.clone());
+    pub fn push(&mut self, settings: &AppSettings, render_mode: RenderMode) {
+        self.entries.push(SettingsSnapshot {
+            settings: settings.clone(),
+            render_mode,
+        });
     }
 
-    pub fn undo(&mut self) -> Option<AppSettings> {
-        self.entries.pop()
+    pub fn undo(&mut self) -> Option<(AppSettings, RenderMode)> {
+        self.entries
+            .pop()
+            .map(|snapshot| (snapshot.settings, snapshot.render_mode))
     }
 }
 
 /// アプリケーション全体の状態
 pub struct AppState {
     pub settings: AppSettings,
+    pub render_mode: RenderMode,
     pub compute_status: ComputeStatus,
     pub image: Option<RenderedImage>,
     pub history: History,
@@ -70,6 +85,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             settings: AppSettings::default(),
+            render_mode: RenderMode::Survey,
             compute_status: ComputeStatus::Idle,
             image: None,
             history: History::default(),

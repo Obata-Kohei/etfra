@@ -1,7 +1,10 @@
 
 use super::{
     action::{AppAction, Direction, SettingsPanel},
-    settings::{AppSettings, AspectRatio, BURST_LONG_EDGE},
+    render_config::{
+        dimensions_for_long_edge, AspectRatio, RenderMode,
+    },
+    settings::AppSettings,
     state::{AppState, ComputeStatus},
 };
 
@@ -79,22 +82,31 @@ impl Controller {
             AppAction::Move(direction) => {
                 let mut settings = state.settings.clone();
                 move_view(&mut settings, direction);
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::ZoomIn => {
                 let mut settings = state.settings.clone();
                 zoom_view(&mut settings, 0.8);
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::ZoomOut => {
                 let mut settings = state.settings.clone();
                 zoom_view(&mut settings, 1.25);
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::Redraw => {
@@ -120,55 +132,81 @@ impl Controller {
             AppAction::SetDynamics(value) => {
                 let mut settings = state.settings.clone();
                 settings.dynamics = value;
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::SetAspectRatio(value) => {
                 let mut settings = state.settings.clone();
-                set_aspect_ratio(&mut settings, value);
-                output.update_required =
-                    self.apply_settings(settings, state);
+                set_aspect_ratio(&mut settings, value, state.render_mode);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::SetColorMap(value) => {
                 let mut settings = state.settings.clone();
                 settings.color_map = value;
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::SetNormalization(value) => {
                 let mut settings = state.settings.clone();
                 settings.normalization = value;
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::SetRenderMode(value) => {
                 let mut settings = state.settings.clone();
-                settings.render_mode = value;
+                let resolution = dimensions_for_long_edge(
+                    settings.image.resolution,
+                    value.long_edge(),
+                )
+                .expect("Image resolution must be nonzero");
+                set_resolution(&mut settings, resolution);
                 output.update_required =
-                    self.apply_settings(settings, state);
+                    self.apply_settings(settings, value, state);
             }
 
             AppAction::SetMaxIterations(value) => {
                 let mut settings = state.settings.clone();
                 settings.max_iter = value;
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::SetEscapeRadius(value) => {
                 let mut settings = state.settings.clone();
                 settings.escape_radius = value;
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::ApplySettings(settings) => {
-                output.update_required =
-                    self.apply_settings(settings, state);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
             }
 
             AppAction::OpenExportDialog => {
@@ -191,17 +229,26 @@ impl Controller {
     fn apply_settings(
         &self,
         new_settings: AppSettings,
+        new_render_mode: RenderMode,
         state: &mut AppState,
     ) -> UpdateRequired {
-        if state.settings == new_settings {
+        if state.settings == new_settings
+            && state.render_mode == new_render_mode
+        {
             return UpdateRequired::None;
         }
 
-        let update = classify_update(&state.settings, &new_settings);
+        let update = classify_update(
+            &state.settings,
+            &new_settings,
+            state.render_mode,
+            new_render_mode,
+        );
 
         // 変更前の設定を履歴に保存する。
-        state.history.push(&state.settings);
+        state.history.push(&state.settings, state.render_mode);
         state.settings = new_settings;
+        state.render_mode = new_render_mode;
 
         // 再計算が必要な場合、古い画像を現在の画像として扱わない。
         if update == UpdateRequired::Recompute {
@@ -217,13 +264,21 @@ impl Controller {
     }
 
     fn undo(&self, state: &mut AppState) -> UpdateRequired {
-        let Some(previous) = state.history.undo() else {
+        let Some((previous_settings, previous_render_mode)) =
+            state.history.undo()
+        else {
             return UpdateRequired::None;
         };
 
-        let update = classify_update(&state.settings, &previous);
+        let update = classify_update(
+            &state.settings,
+            &previous_settings,
+            state.render_mode,
+            previous_render_mode,
+        );
 
-        state.settings = previous;
+        state.settings = previous_settings;
+        state.render_mode = previous_render_mode;
 
         if update == UpdateRequired::Recompute {
             state.image = None;
@@ -237,16 +292,17 @@ impl Controller {
 fn classify_update(
     old: &AppSettings,
     new: &AppSettings,
+    old_render_mode: RenderMode,
+    new_render_mode: RenderMode,
 ) -> UpdateRequired {
     use UpdateRequired::*;
 
     // 計算結果そのものに影響する設定。
     if old.dynamics != new.dynamics
         || old.image != new.image
-        || old.aspect_ratio != new.aspect_ratio
         || old.max_iter != new.max_iter
         || old.escape_radius != new.escape_radius
-        || old.render_mode != new.render_mode
+        || old_render_mode != new_render_mode
         || old.color_map != new.color_map
         || old.normalization != new.normalization
     {
@@ -272,15 +328,21 @@ fn move_view(settings: &mut AppSettings, direction: Direction) {
     }
 }
 
-/// アスペクト比を変更し、中心と横方向の表示範囲を保つ。
-fn set_aspect_ratio(settings: &mut AppSettings, aspect_ratio: AspectRatio) {
-    let view_width = settings.image.view_size().0;
+/// アスペクト比を解像度へ反映し、中心と横方向の表示範囲を保つ。
+fn set_aspect_ratio(
+    settings: &mut AppSettings,
+    aspect_ratio: AspectRatio,
+    render_mode: RenderMode,
+) {
     let resolution = aspect_ratio
-        .dimensions_for_long_edge(BURST_LONG_EDGE)
-        .expect("Burst resolution must have a nonzero long edge");
-    let pixel_scale = view_width / resolution.0 as f64;
+        .dimensions_for_long_edge(render_mode.long_edge())
+        .expect("Render mode long edge must be nonzero");
+    set_resolution(settings, resolution);
+}
 
-    settings.aspect_ratio = aspect_ratio;
+fn set_resolution(settings: &mut AppSettings, resolution: (usize, usize)) {
+    let view_width = settings.image.view_size().0;
+    let pixel_scale = view_width / resolution.0 as f64;
     settings.image.resolution = resolution;
     settings.image.scale = (pixel_scale, pixel_scale);
 }
@@ -308,12 +370,12 @@ mod tests {
         );
 
         assert_eq!(output.update_required, UpdateRequired::Recompute);
-        assert_eq!(state.settings.image.resolution, (512, 288));
+        assert_eq!(state.settings.image.resolution, (256, 144));
         assert_eq!(state.settings.image.center, initial_center);
         assert_eq!(state.settings.image.view_size().0, initial_view_width);
         assert_eq!(
             state.settings.image.view_size().1,
-            initial_view_width * 288.0 / 512.0
+            initial_view_width * 144.0 / 256.0
         );
     }
 
@@ -332,5 +394,28 @@ mod tests {
 
         assert_eq!(output.update_required, UpdateRequired::Recompute);
         assert_eq!(state.settings, initial_settings);
+    }
+
+    #[test]
+    fn changing_render_mode_updates_resolution_and_can_be_undone() {
+        let mut state = AppState::default();
+        let initial_view_width = state.settings.image.view_size().0;
+        let mut controller = Controller;
+
+        let output = controller.process_actions(
+            [AppAction::SetRenderMode(RenderMode::Burst)],
+            &mut state,
+        );
+
+        assert_eq!(output.update_required, UpdateRequired::Recompute);
+        assert_eq!(state.render_mode, RenderMode::Burst);
+        assert_eq!(state.settings.image.resolution, (512, 512));
+        assert_eq!(state.settings.image.view_size().0, initial_view_width);
+
+        let output =
+            controller.process_actions([AppAction::Undo], &mut state);
+        assert_eq!(output.update_required, UpdateRequired::Recompute);
+        assert_eq!(state.render_mode, RenderMode::Survey);
+        assert_eq!(state.settings.image.resolution, (256, 256));
     }
 }

@@ -18,7 +18,7 @@ impl eframe::App for EtfraApp {
     ) {
         // UI実装時は設定操作をAppActionへ変換する。
         // 画像エクスポートはプレビューと別のExportManagerで実行する。
-        // ExportOptions::default()はBurst解像度、resolution指定時は任意サイズ。
+        // ExportOptions::default()は現在の解像度の比率を保ったBurst解像度。
         /*
         // 上部ツールバー
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
