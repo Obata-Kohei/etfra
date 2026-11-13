@@ -3,3 +3,4 @@
 pub mod export;
 pub mod panels;
 pub mod settings;
+pub mod formula;
