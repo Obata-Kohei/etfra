@@ -37,12 +37,14 @@ impl ExportDialog {
             .width
             .trim()
             .parse::<usize>()
+            .ok()
             .filter(|value| *value > 0)
             .unwrap_or(BURST_LONG_EDGE);
         let height = self
             .height
             .trim()
             .parse::<usize>()
+            .ok()
             .filter(|value| *value > 0)
             .unwrap_or(BURST_LONG_EDGE);
 
