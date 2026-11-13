@@ -73,24 +73,15 @@ pub fn actions_from_input_with_panel(
     }
 
     let digit_keys = [
-        (egui::Key::Digit1, 1),
-        (egui::Key::Numpad1, 1),
-        (egui::Key::Digit2, 2),
-        (egui::Key::Numpad2, 2),
-        (egui::Key::Digit3, 3),
-        (egui::Key::Numpad3, 3),
-        (egui::Key::Digit4, 4),
-        (egui::Key::Numpad4, 4),
-        (egui::Key::Digit5, 5),
-        (egui::Key::Numpad5, 5),
-        (egui::Key::Digit6, 6),
-        (egui::Key::Numpad6, 6),
-        (egui::Key::Digit7, 7),
-        (egui::Key::Numpad7, 7),
-        (egui::Key::Digit8, 8),
-        (egui::Key::Numpad8, 8),
-        (egui::Key::Digit9, 9),
-        (egui::Key::Numpad9, 9),
+        (egui::Key::Num1, 1),
+        (egui::Key::Num2, 2),
+        (egui::Key::Num3, 3),
+        (egui::Key::Num4, 4),
+        (egui::Key::Num5, 5),
+        (egui::Key::Num6, 6),
+        (egui::Key::Num7, 7),
+        (egui::Key::Num8, 8),
+        (egui::Key::Num9, 9),
     ];
     for (key, value) in digit_keys {
         if input.key_pressed(key) {
