@@ -11,9 +11,8 @@ pub struct ExportDialog {
     pub open: bool,
     directory: String,
     save_settings: bool,
-    custom_resolution: bool,
-    width: usize,
-    height: usize,
+    width: String,
+    height: String,
 }
 
 impl Default for ExportDialog {
@@ -22,9 +21,8 @@ impl Default for ExportDialog {
             open: false,
             directory: ".".to_owned(),
             save_settings: false,
-            custom_resolution: false,
-            width: BURST_LONG_EDGE,
-            height: BURST_LONG_EDGE,
+            width: BURST_LONG_EDGE.to_string(),
+            height: BURST_LONG_EDGE.to_string(),
         }
     }
 }
@@ -35,10 +33,21 @@ impl ExportDialog {
     }
 
     pub fn options(&self) -> ExportOptions {
+        let width = self
+            .width
+            .trim()
+            .parse::<usize>()
+            .filter(|value| *value > 0)
+            .unwrap_or(BURST_LONG_EDGE);
+        let height = self
+            .height
+            .trim()
+            .parse::<usize>()
+            .filter(|value| *value > 0)
+            .unwrap_or(BURST_LONG_EDGE);
+
         ExportOptions {
-            resolution: self
-                .custom_resolution
-                .then_some((self.width, self.height)),
+            resolution: Some((width, height)),
         }
     }
 
@@ -65,28 +74,22 @@ impl ExportDialog {
                     );
 
                     ui.checkbox(&mut self.save_settings, "Save settings");
-                    ui.checkbox(
-                        &mut self.custom_resolution,
-                        "Custom resolution",
-                    );
-                    if self.custom_resolution {
-                        ui.horizontal(|ui| {
-                            ui.label("Width");
-                            ui.add(
-                                egui::DragValue::new(&mut self.width)
-                                    .range(1..=u32::MAX as usize),
-                            );
-                            ui.label("Height");
-                            ui.add(
-                                egui::DragValue::new(&mut self.height)
-                                    .range(1..=u32::MAX as usize),
-                            );
-                        });
-                    } else {
-                        ui.label(
-                            "Default: Burst resolution, preserving the current aspect ratio.",
+
+                    ui.horizontal(|ui| {
+                        ui.label("Width");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.width)
+                                .desired_width(90.0),
                         );
-                    }
+                    });
+                    ui.horizontal(|ui| {
+                        ui.label("Height");
+                        ui.add(
+                            egui::TextEdit::singleline(&mut self.height)
+                                .desired_width(90.0),
+                        );
+                    });
+                    ui.small("Default: Burst resolution");
 
                     match export_state {
                         ExportState::Idle => {}

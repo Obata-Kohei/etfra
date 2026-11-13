@@ -219,9 +219,6 @@ impl EtfraApp {
         }
 
         if output.update_required == UpdateRequired::Recompute {
-            if self.state.image.is_none() {
-                self.texture = None;
-            }
             self.active_generation =
                 Some(self.compute.request(self.state.settings.clone()));
             self.state.compute_status = ComputeStatus::Running;
@@ -239,7 +236,7 @@ impl EtfraApp {
         let Some(texture) = &self.texture else {
             ui.centered_and_justified(|ui| match &self.state.compute_status {
                 ComputeStatus::Running | ComputeStatus::Cancelling => {
-                    ui.label("Rendering preview...");
+                    ui.label("Calculating");
                 }
                 ComputeStatus::Failed(error) => {
                     ui.label(format!("Preview failed: {error}"));
@@ -262,6 +259,20 @@ impl EtfraApp {
                     .fit_to_exact_size(texture_size * scale),
             );
         });
+
+        if matches!(
+            self.state.compute_status,
+            ComputeStatus::Running | ComputeStatus::Cancelling
+        ) {
+            let rect = ui.max_rect();
+            ui.painter().text(
+                egui::pos2(rect.right() - 18.0, rect.top() + 12.0),
+                egui::Align2::RIGHT_TOP,
+                "Calculating",
+                egui::FontId::proportional(14.0),
+                ui.visuals().strong_text_color(),
+            );
+        }
     }
 }
 
@@ -277,10 +288,11 @@ impl eframe::App for EtfraApp {
         let keyboard_enabled = !ctx.wants_keyboard_input();
         let render_mode = self.state.render_mode;
         let mut actions = ctx.input(|input| {
-            key_input::actions_from_input(
+            key_input::actions_from_input_with_panel(
                 input,
                 render_mode,
                 keyboard_enabled,
+                self.active_settings_panel,
             )
         });
 
@@ -329,11 +341,11 @@ impl eframe::App for EtfraApp {
                     ui.label("Ready");
                 }
                 ComputeStatus::Running => {
-                    ui.label("Rendering preview...");
+                    ui.label("Calculating...");
                     ctx.request_repaint();
                 }
                 ComputeStatus::Cancelling => {
-                    ui.label("Cancelling preview...");
+                    ui.label("Cancelling...");
                     ctx.request_repaint();
                 }
                 ComputeStatus::Failed(error) => {
