@@ -39,7 +39,7 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        let resolution = (BURST_LONG_EDGE / 2, BURST_LONG_EDGE / 2);
+        let resolution = (BURST_LONG_EDGE / 4, BURST_LONG_EDGE / 4);
         Self {
             dynamics: DynamicsSettings::Mandelbrot,
             image: ImageConfig {
@@ -52,7 +52,7 @@ impl Default for AppSettings {
             },
             max_iter: 500,
             escape_radius: 2.0,
-            color_map: ColorMapSettings::HueGradient,
+            color_map: ColorMapSettings::Grayscale,
             normalization: NormalizationSettings::MaxIterations,
         }
     }

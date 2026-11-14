@@ -416,6 +416,6 @@ mod tests {
             controller.process_actions([AppAction::Undo], &mut state);
         assert_eq!(output.update_required, UpdateRequired::Recompute);
         assert_eq!(state.render_mode, RenderMode::Survey);
-        assert_eq!(state.settings.image.resolution, (256, 256));
+        assert_eq!(state.settings.image.resolution, (128, 128));
     }
 }

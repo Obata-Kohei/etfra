@@ -260,19 +260,6 @@ impl EtfraApp {
             );
         });
 
-        if matches!(
-            self.state.compute_status,
-            ComputeStatus::Running | ComputeStatus::Cancelling
-        ) {
-            let rect = ui.max_rect();
-            ui.painter().text(
-                egui::pos2(rect.right() - 18.0, rect.top() + 12.0),
-                egui::Align2::RIGHT_TOP,
-                "Calculating",
-                egui::FontId::proportional(14.0),
-                ui.visuals().strong_text_color(),
-            );
-        }
     }
 }
 
@@ -323,6 +310,50 @@ impl eframe::App for EtfraApp {
                 ));
             });
 
+        egui::SidePanel::right("app_settings")
+            .default_width(220.0)
+            .show(ctx, |ui| {
+                ui.heading("AppSettings");
+                ui.separator();
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    ui.label(format!(
+                        "Dynamics: {:#?}",
+                        self.state.settings.dynamics
+                    ));
+                    ui.label(format!(
+                        "Resolution: {} × {} px",
+                        self.state.settings.image.resolution.0,
+                        self.state.settings.image.resolution.1
+                    ));
+                    ui.label(format!(
+                        "Center: ({:.6}, {:.6})",
+                        self.state.settings.image.center.0,
+                        self.state.settings.image.center.1
+                    ));
+                    ui.label(format!(
+                        "Scale: ({:.6}, {:.6})",
+                        self.state.settings.image.scale.0,
+                        self.state.settings.image.scale.1
+                    ));
+                    ui.label(format!(
+                        "Max iterations: {}",
+                        self.state.settings.max_iter
+                    ));
+                    ui.label(format!(
+                        "Escape radius: {}",
+                        self.state.settings.escape_radius
+                    ));
+                    ui.label(format!(
+                        "Color map: {:?}",
+                        self.state.settings.color_map
+                    ));
+                    ui.label(format!(
+                        "Normalization: {:?}",
+                        self.state.settings.normalization
+                    ));
+                });
+            });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             self.show_preview(ui);
         });
@@ -337,7 +368,9 @@ impl eframe::App for EtfraApp {
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             match &self.state.compute_status {
                 ComputeStatus::Idle => {
-                    ui.label("Ready");
+                    ui.label(
+                        "WASD/Arrow keys: move, Q/E: zoom out/in, R: redraw, Z: undo, X/C: Survey/Burst",
+                    );
                 }
                 ComputeStatus::Running => {
                     ui.label("Calculating...");

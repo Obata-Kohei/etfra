@@ -131,7 +131,6 @@ fn show_dynamics(
         DynamicsSettings::Multibrot { power } => {
             ui.add(
                 egui::DragValue::new(power)
-                    .range(2.0..=16.0)
                     .speed(0.1)
                     .prefix("Power: "),
             );

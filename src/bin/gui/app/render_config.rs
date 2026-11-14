@@ -135,10 +135,10 @@ pub enum RenderMode {
 }
 
 impl RenderMode {
-    /// SurveyはBurstの長辺解像度の半分で描画する。
+    /// SurveyはBurstの長辺解像度の1/4で描画する。
     pub const fn long_edge(self) -> usize {
         match self {
-            Self::Survey => BURST_LONG_EDGE / 2,
+            Self::Survey => BURST_LONG_EDGE / 4,
             Self::Burst => BURST_LONG_EDGE,
         }
     }
@@ -291,5 +291,11 @@ mod tests {
         );
 
         assert_eq!(result, Err(RenderConfigError::InvalidResolution));
+    }
+
+    #[test]
+    fn survey_uses_one_quarter_of_burst_long_edge() {
+        assert_eq!(RenderMode::Survey.long_edge(), BURST_LONG_EDGE / 4);
+        assert_eq!(RenderMode::Burst.long_edge(), BURST_LONG_EDGE);
     }
 }
