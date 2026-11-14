@@ -20,8 +20,7 @@ pub fn show_settings_panel(
     let mut actions = Vec::new();
 
     ui.heading("Settings");
-    ui.small("Keys: 1 Dynamics • 2 Coloring • 3 Resolution • 4 Iterations • 5 Render mode");
-    for (index, (panel, label)) in [
+    for (panel, label) in [
         (SettingsPanel::Dynamics, "Dynamics"),
         (SettingsPanel::Coloring, "Coloring"),
         (SettingsPanel::Resolution, "Resolution"),
@@ -29,9 +28,7 @@ pub fn show_settings_panel(
         (SettingsPanel::RenderMode, "Render mode"),
     ]
     .into_iter()
-    .enumerate()
     {
-        let label = format!("{}. {}", index + 1, label);
         if ui
             .selectable_label(active_panel == panel, label)
             .clicked()

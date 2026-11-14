@@ -52,7 +52,7 @@ fn show_dynamics(
 ) {
     let mut dynamics = settings.dynamics.clone();
 
-    egui::ComboBox::from_label("1. Fractal")
+    egui::ComboBox::from_label("Fractal")
         .selected_text(dynamics_name(&dynamics))
         .show_ui(ui, |ui| {
             ui.selectable_value(
@@ -173,7 +173,7 @@ fn show_coloring(
     actions: &mut Vec<AppAction>,
 ) {
     let mut color_map = settings.color_map;
-    egui::ComboBox::from_label("2. Color map")
+    egui::ComboBox::from_label("Color map")
         .selected_text(match color_map {
             ColorMapSettings::Grayscale => "Grayscale",
             ColorMapSettings::HueGradient => "Hue gradient",
@@ -233,7 +233,7 @@ fn show_resolution(
     );
     let mut selected_ratio = current_ratio;
 
-    egui::ComboBox::from_label("3. Aspect ratio")
+    egui::ComboBox::from_label("Aspect ratio")
         .selected_text(selected_text)
         .show_ui(ui, |ui| {
             for ratio in AspectRatio::PRESETS {
@@ -259,7 +259,7 @@ fn show_iterations(
     actions: &mut Vec<AppAction>,
 ) {
     let mut max_iterations = settings.max_iter;
-    ui.label("4. Maximum iterations");
+    ui.label("Maximum iterations");
     ui.add(
         egui::DragValue::new(&mut max_iterations)
             .range(1..=100_000)
@@ -270,7 +270,7 @@ fn show_iterations(
     }
 
     let mut escape_radius = settings.escape_radius;
-    ui.label("4. Escape radius");
+    ui.label("Escape radius");
     ui.add(
         egui::DragValue::new(&mut escape_radius)
             .range(0.1..=1_000_000.0)
@@ -286,7 +286,7 @@ fn show_render_mode(
     render_mode: RenderMode,
     actions: &mut Vec<AppAction>,
 ) {
-    ui.label("5. Preview quality");
+    ui.label("Preview quality");
     for (mode, label) in [
         (RenderMode::Survey, "Survey"),
         (RenderMode::Burst, "Burst"),

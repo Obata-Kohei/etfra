@@ -287,16 +287,13 @@ impl eframe::App for EtfraApp {
 
         let keyboard_enabled = !ctx.wants_keyboard_input();
         let render_mode = self.state.render_mode;
-        let keyboard_actions = ctx.input(|input| {
-            key_input::actions_from_input_with_panel(
+        let mut actions = ctx.input(|input| {
+            key_input::actions_from_input(
                 input,
                 render_mode,
                 keyboard_enabled,
-                self.active_settings_panel,
             )
         });
-        self.process_actions(keyboard_actions);
-        let mut actions = Vec::new();
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
