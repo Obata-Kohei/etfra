@@ -1,4 +1,5 @@
 use std::{
+    fs,
     path::PathBuf,
     sync::Arc,
 };
@@ -14,7 +15,10 @@ use super::{
     key_input,
     settings::AppSettings,
     state::{AppState, ComputeStatus, ExportState},
-    ui::{export::ExportDialog, formula::FormulaEditor, panels},
+    ui::{
+        export::ExportDialog, formula::FormulaEditor,
+        import::ImportDialog, panels,
+    },
 };
 
 struct PendingExport {
@@ -33,6 +37,8 @@ pub struct EtfraApp {
     export_generation: Option<u64>,
     pending_export: Option<PendingExport>,
     export_dialog: ExportDialog,
+    import_dialog: ImportDialog,
+    import_status: Option<String>,
     active_settings_panel: SettingsPanel,
     formula_editor: FormulaEditor,
     texture: Option<egui::TextureHandle>,
@@ -54,6 +60,8 @@ impl EtfraApp {
             export_generation: None,
             pending_export: None,
             export_dialog: ExportDialog::default(),
+            import_dialog: ImportDialog::default(),
+            import_status: None,
             active_settings_panel: SettingsPanel::Dynamics,
             formula_editor: FormulaEditor::default(),
             texture: None,
@@ -292,8 +300,11 @@ impl eframe::App for EtfraApp {
                 if ui.button("Undo").clicked() {
                     actions.push(AppAction::Undo);
                 }
-                if ui.button("Export...").clicked() {
+                if ui.button("Export").clicked() {
                     actions.push(AppAction::OpenExportDialog);
+                }
+                if ui.button("Import").clicked() {
+                    self.import_dialog.open = true;
                 }
             });
         });
@@ -363,6 +374,35 @@ impl eframe::App for EtfraApp {
             self.export_manager.is_busy(),
             &self.state.export_state,
         ));
+        if let Some(path) = self.import_dialog.show(ctx) {
+            if path.as_os_str().is_empty() {
+                self.import_dialog
+                    .set_error("JSONファイルのパスを入力してください".to_owned());
+            } else {
+                match fs::read(&path)
+                    .map_err(|error| error.to_string())
+                    .and_then(|contents| {
+                        serde_json::from_slice::<AppSettings>(&contents)
+                            .map_err(|error| error.to_string())
+                    })
+                {
+                    Ok(settings) => {
+                        self.import_dialog.close();
+                        self.import_status = Some(format!(
+                            "Imported settings from {}",
+                            path.display()
+                        ));
+                        actions.push(AppAction::ApplySettings(settings));
+                        actions.push(AppAction::Redraw);
+                    }
+                    Err(error) => {
+                        self.import_dialog.set_error(format!(
+                            "設定ファイルを読み込めません: {error}"
+                        ));
+                    }
+                }
+            }
+        }
         self.process_actions(actions);
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
@@ -393,6 +433,10 @@ impl eframe::App for EtfraApp {
                     ui.separator();
                     ui.colored_label(ui.visuals().error_fg_color, error);
                 }
+            }
+            if let Some(status) = &self.import_status {
+                ui.separator();
+                ui.label(status);
             }
         });
     }
