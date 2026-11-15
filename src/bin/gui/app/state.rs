@@ -102,6 +102,7 @@ mod tests {
 pub struct AppState {
     pub settings: AppSettings,
     pub render_mode: RenderMode,
+    pub show_center_lines: bool,
     pub compute_status: ComputeStatus,
     pub image: Option<RenderedImage>,
     pub history: History,
@@ -113,6 +114,7 @@ impl Default for AppState {
         Self {
             settings: AppSettings::default(),
             render_mode: RenderMode::Survey,
+            show_center_lines: false,
             compute_status: ComputeStatus::Idle,
             image: None,
             history: History::default(),

@@ -29,8 +29,11 @@ pub enum SettingsPanel {
 pub enum AppAction {
     // 表示範囲の操作
     Move(Direction),
+    MoveHalf(Direction),
     ZoomIn,
     ZoomOut,
+    SetCenter(Float, Float),
+    ToggleCenterLines,
 
     // 描画・履歴
     Redraw,

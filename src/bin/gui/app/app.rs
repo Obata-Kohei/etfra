@@ -28,6 +28,18 @@ struct PendingExport {
     save_settings: bool,
 }
 
+#[derive(Debug, Clone, Copy)]
+struct PreviewCursor {
+    pixel: (usize, usize),
+    xy: (f64, f64),
+}
+
+#[derive(Debug, Default)]
+struct PreviewInteraction {
+    cursor: Option<PreviewCursor>,
+    clicked_xy: Option<(f64, f64)>,
+}
+
 pub struct EtfraApp {
     state: AppState,
     controller: Controller,
@@ -42,6 +54,10 @@ pub struct EtfraApp {
     active_settings_panel: SettingsPanel,
     formula_editor: FormulaEditor,
     texture: Option<egui::TextureHandle>,
+    coordinate_x: String,
+    coordinate_y: String,
+    coordinate_error: Option<String>,
+    synchronized_center: (f64, f64),
 }
 
 impl EtfraApp {
@@ -50,6 +66,7 @@ impl EtfraApp {
         let mut compute = ComputeManager::new(Arc::new(FractalBackend));
         let active_generation = Some(compute.request(state.settings.clone()));
         state.compute_status = ComputeStatus::Running;
+        let synchronized_center = state.settings.image.center;
 
         Self {
             state,
@@ -65,6 +82,10 @@ impl EtfraApp {
             active_settings_panel: SettingsPanel::Dynamics,
             formula_editor: FormulaEditor::default(),
             texture: None,
+            coordinate_x: format!("{:.12}", synchronized_center.0),
+            coordinate_y: format!("{:.12}", synchronized_center.1),
+            coordinate_error: None,
+            synchronized_center,
         }
     }
 
@@ -244,7 +265,8 @@ impl EtfraApp {
         }
     }
 
-    fn show_preview(&self, ui: &mut egui::Ui) {
+    fn show_preview(&self, ui: &mut egui::Ui) -> PreviewInteraction {
+        let mut interaction = PreviewInteraction::default();
         let Some(texture) = &self.texture else {
             ui.centered_and_justified(|ui| match &self.state.compute_status {
                 ComputeStatus::Running | ComputeStatus::Cancelling => {
@@ -257,7 +279,7 @@ impl EtfraApp {
                     ui.label("No preview available");
                 }
             });
-            return;
+            return interaction;
         };
 
         let available = ui.available_size();
@@ -266,13 +288,88 @@ impl EtfraApp {
             .min(available.y / texture_size.y)
             .max(0.0);
         ui.centered_and_justified(|ui| {
-            ui.add(
+            let response = ui.add(
                 egui::Image::new(texture)
-                    .fit_to_exact_size(texture_size * scale),
+                    .fit_to_exact_size(texture_size * scale)
+                    .sense(egui::Sense::click()),
             );
-        });
+            if self.state.show_center_lines {
+                let center = response.rect.center();
+                let stroke = egui::Stroke::new(
+                    1.0,
+                    egui::Color32::from_white_alpha(180),
+                );
+                let painter = ui.painter_at(response.rect);
+                painter.line_segment(
+                    [
+                        egui::pos2(response.rect.left(), center.y),
+                        egui::pos2(response.rect.right(), center.y),
+                    ],
+                    stroke,
+                );
+                painter.line_segment(
+                    [
+                        egui::pos2(center.x, response.rect.top()),
+                        egui::pos2(center.x, response.rect.bottom()),
+                    ],
+                    stroke,
+                );
+            }
 
+            if self.state.image.is_some() {
+                if let Some(position) = response.hover_pos() {
+                    interaction.cursor = preview_cursor(
+                        response.rect,
+                        position,
+                        &self.state.settings.image,
+                    );
+                }
+                if response.clicked() {
+                    interaction.clicked_xy = response
+                        .interact_pointer_pos()
+                        .and_then(|position| {
+                            preview_cursor(
+                                response.rect,
+                                position,
+                                &self.state.settings.image,
+                            )
+                        })
+                        .map(|cursor| cursor.xy);
+                }
+            }
+        });
+        interaction
     }
+}
+
+fn preview_cursor(
+    image_rect: egui::Rect,
+    position: egui::Pos2,
+    image_config: &etfra::util::image_config::ImageConfig,
+) -> Option<PreviewCursor> {
+    let (width, height) = image_config.resolution;
+    if width == 0
+        || height == 0
+        || image_rect.width() <= 0.0
+        || image_rect.height() <= 0.0
+    {
+        return None;
+    }
+
+    let x = (((position.x - image_rect.left()) / image_rect.width())
+        * width as f32)
+        .floor()
+        .max(0.0) as usize;
+    let y = (((position.y - image_rect.top()) / image_rect.height())
+        * height as f32)
+        .floor()
+        .max(0.0) as usize;
+    let pixel = (x.min(width - 1), y.min(height - 1));
+    let view_size = image_config.view_size();
+    let view_bounds = image_config.view_bounds(view_size);
+    let xy = image_config.pixel_to_xyplane(pixel, view_bounds);
+
+    Some(PreviewCursor { pixel, xy })
 }
 
 impl eframe::App for EtfraApp {
@@ -293,6 +390,11 @@ impl eframe::App for EtfraApp {
                 keyboard_enabled,
             )
         });
+        if self.state.settings.image.center != self.synchronized_center {
+            self.synchronized_center = self.state.settings.image.center;
+            self.coordinate_x = format!("{:.12}", self.synchronized_center.0);
+            self.coordinate_y = format!("{:.12}", self.synchronized_center.1);
+        }
 
         egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -366,12 +468,61 @@ impl eframe::App for EtfraApp {
                         "Normalization: {:?}",
                         self.state.settings.normalization
                     ));
+
+                    ui.separator();
+                    ui.label("Go to coordinates (x, y)");
+                    let mut coordinate_input_changed = false;
+                    ui.horizontal(|ui| {
+                        ui.label("x");
+                        coordinate_input_changed |= ui
+                            .add(
+                                egui::TextEdit::singleline(
+                                    &mut self.coordinate_x,
+                                )
+                                .desired_width(65.0),
+                            )
+                            .changed();
+                        ui.label("y");
+                        coordinate_input_changed |= ui
+                            .add(
+                                egui::TextEdit::singleline(
+                                    &mut self.coordinate_y,
+                                )
+                                .desired_width(65.0),
+                            )
+                            .changed();
+                    });
+                    if coordinate_input_changed {
+                        self.coordinate_error = None;
+                    }
+                    if ui.button("Go to coordinates").clicked() {
+                        let x = self.coordinate_x.trim().parse::<f64>();
+                        let y = self.coordinate_y.trim().parse::<f64>();
+                        match (x, y) {
+                            (Ok(x), Ok(y)) if x.is_finite() && y.is_finite() => {
+                                actions.push(AppAction::SetCenter(x, y));
+                                self.coordinate_error = None;
+                            }
+                            _ => {
+                                self.coordinate_error = Some(
+                                    "Enter finite numeric x and y coordinates."
+                                        .to_owned(),
+                                );
+                            }
+                        }
+                    }
+                    if let Some(error) = &self.coordinate_error {
+                        ui.colored_label(ui.visuals().error_fg_color, error);
+                    }
                 });
             });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            self.show_preview(ui);
-        });
+        let preview_interaction = egui::CentralPanel::default()
+            .show(ctx, |ui| self.show_preview(ui))
+            .inner;
+        if let Some((x, y)) = preview_interaction.clicked_xy {
+            actions.push(AppAction::SetCenter(x, y));
+        }
 
         actions.extend(self.export_dialog.show(
             ctx,
@@ -410,10 +561,24 @@ impl eframe::App for EtfraApp {
         self.process_actions(actions);
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+            ui.with_layout(
+                egui::Layout::right_to_left(egui::Align::Center),
+                |ui| {
+                    if let Some(cursor) = preview_interaction.cursor {
+                        ui.label(format!(
+                            "Pixel ({}, {})   x: {:.8}, y: {:.8}",
+                            cursor.pixel.0,
+                            cursor.pixel.1,
+                            cursor.xy.0,
+                            cursor.xy.1
+                        ));
+                    }
+                },
+            );
             match &self.state.compute_status {
                 ComputeStatus::Idle => {
                     ui.label(
-                        "WASD/Arrow keys: move, Q/E: zoom out/in, R: redraw, Z: undo, X/C: Survey/Burst",
+                        "WASD/Arrow keys: move, Shift+Arrow: half move, Q/E: zoom, R: redraw, L: center lines, Z: undo, X/C: Survey/Burst",
                     );
                 }
                 ComputeStatus::Running => {
@@ -428,6 +593,7 @@ impl eframe::App for EtfraApp {
                     ui.label(format!("Rendering failed: {error}"));
                 }
             }
+
             if self.export_manager.is_busy() {
                 ui.separator();
                 ui.label("Exporting...");
@@ -438,10 +604,35 @@ impl eframe::App for EtfraApp {
                     ui.colored_label(ui.visuals().error_fg_color, error);
                 }
             }
+
             if let Some(status) = &self.import_status {
                 ui.separator();
                 ui.label(status);
             }
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preview_cursor_maps_pointer_to_pixel_and_plane_coordinates() {
+        let image = etfra::util::image_config::ImageConfig::new(
+            (2, 2),
+            (1.0, 1.0),
+            (0.0, 0.0),
+        );
+        let rect = egui::Rect::from_min_max(
+            egui::pos2(0.0, 0.0),
+            egui::pos2(2.0, 2.0),
+        );
+
+        let cursor = preview_cursor(rect, egui::pos2(1.5, 1.5), &image)
+            .unwrap();
+
+        assert_eq!(cursor.pixel, (1, 1));
+        assert_eq!(cursor.xy, (0.0, 0.0));
     }
 }

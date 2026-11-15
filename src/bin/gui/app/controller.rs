@@ -81,7 +81,17 @@ impl Controller {
         match action {
             AppAction::Move(direction) => {
                 let mut settings = state.settings.clone();
-                move_view(&mut settings, direction);
+                move_view(&mut settings, direction, 0.1);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
+            }
+
+            AppAction::MoveHalf(direction) => {
+                let mut settings = state.settings.clone();
+                move_view(&mut settings, direction, 0.05);
                 output.update_required = self.apply_settings(
                     settings,
                     state.render_mode,
@@ -107,6 +117,20 @@ impl Controller {
                     state.render_mode,
                     state,
                 );
+            }
+
+            AppAction::SetCenter(x, y) => {
+                let mut settings = state.settings.clone();
+                settings.image.center = (x, y);
+                output.update_required = self.apply_settings(
+                    settings,
+                    state.render_mode,
+                    state,
+                );
+            }
+
+            AppAction::ToggleCenterLines => {
+                state.show_center_lines = !state.show_center_lines;
             }
 
             AppAction::Redraw => {
@@ -313,12 +337,11 @@ fn classify_update(
 }
 
 /// 表示範囲を移動する。
-fn move_view(settings: &mut AppSettings, direction: Direction) {
+fn move_view(settings: &mut AppSettings, direction: Direction, fraction: f64) {
     let (view_width, view_height) = settings.image.view_size();
 
-    // 画面サイズの10%を移動量とする。
-    let dx = view_width * 0.1;
-    let dy = view_height * 0.1;
+    let dx = view_width * fraction;
+    let dy = view_height * fraction;
 
     match direction {
         Direction::Up => settings.image.center.1 += dy,
@@ -441,5 +464,47 @@ mod tests {
             );
             assert_eq!(state.settings.image.resolution, resolution);
         }
+    }
+
+    #[test]
+    fn half_move_uses_half_of_the_normal_move_distance() {
+        let mut state = AppState::default();
+        let initial_center = state.settings.image.center;
+        let view_width = state.settings.image.view_size().0;
+        let mut controller = Controller;
+
+        controller.process_actions(
+            [AppAction::MoveHalf(Direction::Right)],
+            &mut state,
+        );
+
+        assert_eq!(
+            state.settings.image.center.0,
+            initial_center.0 + view_width * 0.05
+        );
+    }
+
+    #[test]
+    fn center_line_toggle_does_not_request_recomputation() {
+        let mut state = AppState::default();
+        let mut controller = Controller;
+
+        let output = controller
+            .process_actions([AppAction::ToggleCenterLines], &mut state);
+
+        assert!(state.show_center_lines);
+        assert_eq!(output.update_required, UpdateRequired::None);
+    }
+
+    #[test]
+    fn setting_center_requests_recomputation() {
+        let mut state = AppState::default();
+        let mut controller = Controller;
+
+        let output =
+            controller.process_actions([AppAction::SetCenter(1.25, -0.75)], &mut state);
+
+        assert_eq!(state.settings.image.center, (1.25, -0.75));
+        assert_eq!(output.update_required, UpdateRequired::Recompute);
     }
 }

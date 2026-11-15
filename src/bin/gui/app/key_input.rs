@@ -16,24 +16,40 @@ pub fn actions_from_input(
 
     let mut actions = Vec::new();
 
-    if input.key_pressed(egui::Key::W)
-        || input.key_pressed(egui::Key::ArrowUp)
-    {
+    if input.key_pressed(egui::Key::ArrowUp) {
+        actions.push(if input.modifiers.shift {
+            AppAction::MoveHalf(Direction::Up)
+        } else {
+            AppAction::Move(Direction::Up)
+        });
+    } else if input.key_pressed(egui::Key::W) {
         actions.push(AppAction::Move(Direction::Up));
     }
-    if input.key_pressed(egui::Key::A)
-        || input.key_pressed(egui::Key::ArrowLeft)
-    {
+    if input.key_pressed(egui::Key::ArrowLeft) {
+        actions.push(if input.modifiers.shift {
+            AppAction::MoveHalf(Direction::Left)
+        } else {
+            AppAction::Move(Direction::Left)
+        });
+    } else if input.key_pressed(egui::Key::A) {
         actions.push(AppAction::Move(Direction::Left));
     }
-    if input.key_pressed(egui::Key::S)
-        || input.key_pressed(egui::Key::ArrowDown)
-    {
+    if input.key_pressed(egui::Key::ArrowDown) {
+        actions.push(if input.modifiers.shift {
+            AppAction::MoveHalf(Direction::Down)
+        } else {
+            AppAction::Move(Direction::Down)
+        });
+    } else if input.key_pressed(egui::Key::S) {
         actions.push(AppAction::Move(Direction::Down));
     }
-    if input.key_pressed(egui::Key::D)
-        || input.key_pressed(egui::Key::ArrowRight)
-    {
+    if input.key_pressed(egui::Key::ArrowRight) {
+        actions.push(if input.modifiers.shift {
+            AppAction::MoveHalf(Direction::Right)
+        } else {
+            AppAction::Move(Direction::Right)
+        });
+    } else if input.key_pressed(egui::Key::D) {
         actions.push(AppAction::Move(Direction::Right));
     }
     if input.key_pressed(egui::Key::E) {
@@ -44,6 +60,9 @@ pub fn actions_from_input(
     }
     if input.key_pressed(egui::Key::R) {
         actions.push(AppAction::Redraw);
+    }
+    if input.key_pressed(egui::Key::L) {
+        actions.push(AppAction::ToggleCenterLines);
     }
     if input.key_pressed(egui::Key::Z) {
         actions.push(AppAction::StopAndUndo);
