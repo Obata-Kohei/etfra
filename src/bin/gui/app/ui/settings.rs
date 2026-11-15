@@ -288,6 +288,8 @@ fn show_render_mode(
     ui.label("Preview quality");
     for (mode, label) in [
         (RenderMode::Survey, "Survey"),
+        (RenderMode::Light, "Light"),
+        (RenderMode::SuperLight, "SuperLight"),
         (RenderMode::Burst, "Burst"),
     ] {
         if ui

@@ -418,4 +418,28 @@ mod tests {
         assert_eq!(state.render_mode, RenderMode::Survey);
         assert_eq!(state.settings.image.resolution, (128, 128));
     }
+
+    #[test]
+    fn preview_modes_use_fixed_long_edges_and_preserve_aspect_ratio() {
+        let mut state = AppState::default();
+        let mut controller = Controller;
+
+        controller.process_actions(
+            [AppAction::SetAspectRatio(AspectRatio::LANDSCAPE_16_9)],
+            &mut state,
+        );
+
+        for (mode, resolution) in [
+            (RenderMode::Light, (64, 36)),
+            (RenderMode::SuperLight, (32, 18)),
+            (RenderMode::Survey, (128, 72)),
+            (RenderMode::Burst, (512, 288)),
+        ] {
+            controller.process_actions(
+                [AppAction::SetRenderMode(mode)],
+                &mut state,
+            );
+            assert_eq!(state.settings.image.resolution, resolution);
+        }
+    }
 }

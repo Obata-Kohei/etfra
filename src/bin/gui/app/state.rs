@@ -4,6 +4,8 @@ use super::{
     settings::AppSettings,
 };
 
+pub const MAX_HISTORY_ENTRIES: usize = 100;
+
 /// 計算処理の状態
 #[derive(Debug, Clone, PartialEq)]
 pub enum ComputeStatus {
@@ -58,6 +60,9 @@ struct SettingsSnapshot {
 
 impl History {
     pub fn push(&mut self, settings: &AppSettings, render_mode: RenderMode) {
+        if self.entries.len() >= MAX_HISTORY_ENTRIES {
+            self.entries.remove(0);
+        }
         self.entries.push(SettingsSnapshot {
             settings: settings.clone(),
             render_mode,
@@ -68,6 +73,28 @@ impl History {
         self.entries
             .pop()
             .map(|snapshot| (snapshot.settings, snapshot.render_mode))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_retains_only_the_most_recent_entries() {
+        let mut history = History::default();
+        let mut settings = AppSettings::default();
+
+        for value in 0..=MAX_HISTORY_ENTRIES {
+            settings.max_iter = value;
+            history.push(&settings, RenderMode::Survey);
+        }
+
+        for value in (1..=MAX_HISTORY_ENTRIES).rev() {
+            let (snapshot, _) = history.undo().unwrap();
+            assert_eq!(snapshot.max_iter, value);
+        }
+        assert!(history.undo().is_none());
     }
 }
 

@@ -32,6 +32,11 @@ impl ExportDialog {
         &self.directory
     }
 
+    pub fn set_default_resolution(&mut self, resolution: (usize, usize)) {
+        self.width = resolution.0.to_string();
+        self.height = resolution.1.to_string();
+    }
+
     pub fn options(&self) -> ExportOptions {
         let width = self
             .width
@@ -91,7 +96,11 @@ impl ExportDialog {
                                 .desired_width(90.0),
                         );
                     });
-                    ui.small("Default: Burst resolution");
+                    ui.separator();
+                    ui.label("Common resolution references:");
+                    ui.small("HD (720p): 1280 × 720 px");
+                    ui.small("Full HD (1080p): 1920 × 1080 px");
+                    ui.small("4K UHD: 3840 × 2160 px");
 
                     match export_state {
                         ExportState::Idle => {}
@@ -128,5 +137,18 @@ impl ExportDialog {
 
         self.open = open && !close_dialog;
         actions
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_resolution_can_be_synchronized_with_app_settings() {
+        let mut dialog = ExportDialog::default();
+        dialog.set_default_resolution((1920, 1080));
+
+        assert_eq!(dialog.options().resolution, Some((1920, 1080)));
     }
 }

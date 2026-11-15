@@ -2,6 +2,9 @@ use etfra::prelude::*;
 use serde::{Deserialize, Serialize};
 
 pub const BURST_LONG_EDGE: usize = 512;
+pub const SURVEY_LONG_EDGE: usize = 128;
+pub const LIGHT_LONG_EDGE: usize = 64;
+pub const SUPER_LIGHT_LONG_EDGE: usize = 32;
 
 /// フラクタルの種類と、その計算に必要なパラメータ。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -39,7 +42,7 @@ pub struct AppSettings {
 
 impl Default for AppSettings {
     fn default() -> Self {
-        let resolution = (BURST_LONG_EDGE / 4, BURST_LONG_EDGE / 4);
+        let resolution = (SURVEY_LONG_EDGE, SURVEY_LONG_EDGE);
         Self {
             dynamics: DynamicsSettings::Mandelbrot,
             image: ImageConfig {

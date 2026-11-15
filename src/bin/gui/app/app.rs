@@ -223,6 +223,10 @@ impl EtfraApp {
             self.active_settings_panel = panel;
         }
         if output.open_export_dialog {
+            if !self.export_dialog.open {
+                self.export_dialog
+                    .set_default_resolution(self.state.settings.image.resolution);
+            }
             self.export_dialog.open = true;
         }
 

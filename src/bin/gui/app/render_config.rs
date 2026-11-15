@@ -1,7 +1,10 @@
 use etfra::prelude::*;
 use serde::{de, Deserialize, Deserializer, Serialize};
 
-use super::settings::{AppSettings, BURST_LONG_EDGE};
+use super::settings::{
+    AppSettings, BURST_LONG_EDGE, LIGHT_LONG_EDGE, SUPER_LIGHT_LONG_EDGE,
+    SURVEY_LONG_EDGE,
+};
 
 /// 画像の縦横比。値は既約比に正規化する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -127,18 +130,22 @@ fn dimensions_for_ratio(
     }
 }
 
-/// プレビュー品質を指定する。解像度自体はAppSettings.image.resolutionに保持する。
+/// プレビュー品質を指定する。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RenderMode {
     Survey,
+    Light,
+    SuperLight,
     Burst,
 }
 
 impl RenderMode {
-    /// SurveyはBurstの長辺解像度の1/4で描画する。
+    /// 各プレビューモードで使う長辺解像度。
     pub const fn long_edge(self) -> usize {
         match self {
-            Self::Survey => BURST_LONG_EDGE / 4,
+            Self::Survey => SURVEY_LONG_EDGE,
+            Self::Light => LIGHT_LONG_EDGE,
+            Self::SuperLight => SUPER_LIGHT_LONG_EDGE,
             Self::Burst => BURST_LONG_EDGE,
         }
     }
@@ -179,7 +186,8 @@ pub fn dimensions_for_long_edge(
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RenderTarget {
     Preview,
-    /// `None`は現在の解像度から導出したBurst解像度、`Some`は任意の幅・高さ。
+    /// `None`は現在の解像度のアスペクト比を保ったBurst解像度、
+    /// `Some`は指定した幅・高さ。
     Export {
         resolution: Option<(usize, usize)>,
     },
@@ -294,8 +302,10 @@ mod tests {
     }
 
     #[test]
-    fn survey_uses_one_quarter_of_burst_long_edge() {
-        assert_eq!(RenderMode::Survey.long_edge(), BURST_LONG_EDGE / 4);
+    fn preview_modes_have_fixed_long_edges() {
+        assert_eq!(RenderMode::Survey.long_edge(), SURVEY_LONG_EDGE);
+        assert_eq!(RenderMode::Light.long_edge(), LIGHT_LONG_EDGE);
+        assert_eq!(RenderMode::SuperLight.long_edge(), SUPER_LIGHT_LONG_EDGE);
         assert_eq!(RenderMode::Burst.long_edge(), BURST_LONG_EDGE);
     }
 }
