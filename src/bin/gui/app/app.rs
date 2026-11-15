@@ -298,7 +298,7 @@ impl EtfraApp {
             if self.state.show_center_lines {
                 let center = response.rect.center();
                 let stroke = egui::Stroke::new(
-                    1.0,
+                    1.0_f32,
                     egui::Color32::from_white_alpha(180),
                 );
                 let painter = ui.painter_at(response.rect);
