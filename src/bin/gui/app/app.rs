@@ -474,7 +474,7 @@ impl eframe::App for EtfraApp {
                     ui.separator();
                     if let Some(cursor) = self.preview_cursor {
                         ui.label(format!(
-                            "Pixel ({}, {})   x: {:.8}, y: {:.8}",
+                            "Pixel ({}, {})\nx: {:.8}\ny: {:.8}",
                             cursor.pixel.0,
                             cursor.pixel.1,
                             cursor.xy.0,
