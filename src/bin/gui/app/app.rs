@@ -28,7 +28,7 @@ struct PendingExport {
     save_settings: bool,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct PreviewCursor {
     pixel: (usize, usize),
     xy: (f64, f64),
@@ -58,6 +58,7 @@ pub struct EtfraApp {
     coordinate_y: String,
     coordinate_error: Option<String>,
     synchronized_center: (f64, f64),
+    preview_cursor: Option<PreviewCursor>,
 }
 
 impl EtfraApp {
@@ -86,6 +87,7 @@ impl EtfraApp {
             coordinate_y: format!("{:.12}", synchronized_center.1),
             coordinate_error: None,
             synchronized_center,
+            preview_cursor: None,
         }
     }
 
@@ -470,6 +472,16 @@ impl eframe::App for EtfraApp {
                     ));
 
                     ui.separator();
+                    if let Some(cursor) = self.preview_cursor {
+                        ui.label(format!(
+                            "Pixel ({}, {})   x: {:.8}, y: {:.8}",
+                            cursor.pixel.0,
+                            cursor.pixel.1,
+                            cursor.xy.0,
+                            cursor.xy.1
+                        ));
+                    }
+                    ui.separator();
                     ui.label("Go to coordinates (x, y)");
                     let mut coordinate_input_changed = false;
                     ui.horizontal(|ui| {
@@ -520,6 +532,10 @@ impl eframe::App for EtfraApp {
         let preview_interaction = egui::CentralPanel::default()
             .show(ctx, |ui| self.show_preview(ui))
             .inner;
+        if preview_interaction.cursor != self.preview_cursor {
+            self.preview_cursor = preview_interaction.cursor;
+            ctx.request_repaint();
+        }
         if let Some((x, y)) = preview_interaction.clicked_xy {
             actions.push(AppAction::SetCenter(x, y));
         }
@@ -561,20 +577,6 @@ impl eframe::App for EtfraApp {
         self.process_actions(actions);
 
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
-            ui.with_layout(
-                egui::Layout::right_to_left(egui::Align::Center),
-                |ui| {
-                    if let Some(cursor) = preview_interaction.cursor {
-                        ui.label(format!(
-                            "Pixel ({}, {})   x: {:.8}, y: {:.8}",
-                            cursor.pixel.0,
-                            cursor.pixel.1,
-                            cursor.xy.0,
-                            cursor.xy.1
-                        ));
-                    }
-                },
-            );
             match &self.state.compute_status {
                 ComputeStatus::Idle => {
                     ui.label(
