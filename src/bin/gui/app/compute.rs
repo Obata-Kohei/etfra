@@ -22,7 +22,6 @@ use etfra::{
 use super::{
     settings::{
         DynamicsSettings,
-        ColorMapSettings,
         NormalizationSettings,
         AppSettings,
     },
@@ -289,12 +288,7 @@ where
         return Err(ComputeError::Cancelled);
     }
 
-    let palette = match settings.color_map {
-        ColorMapSettings::Grayscale => Palette::grayscale(256),
-        ColorMapSettings::HueGradient => {
-            Palette::gradation_by_hue(256, 0.0, 360.0, 1.0, 1.0)
-        }
-    };
+    let palette = settings.color_map.create_color_map();
 
     let coloring = Coloring {
         normalizer,

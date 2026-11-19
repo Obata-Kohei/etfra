@@ -24,6 +24,17 @@ pub enum ColorMapSettings {
     HueGradient,
 }
 
+impl ColorMapSettings {
+    pub fn create_color_map(&self) -> Palette {
+        match &self {
+            ColorMapSettings::Grayscale => Palette::grayscale(256),
+            ColorMapSettings::HueGradient => {
+                Palette::gradation_by_hue(256, 0.0, 360.0, 1.0, 1.0)
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum NormalizationSettings {
     MaxIterations,
