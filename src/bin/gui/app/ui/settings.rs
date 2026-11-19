@@ -175,6 +175,7 @@ fn show_coloring(
     egui::ComboBox::from_label("Color map")
         .selected_text(match color_map {
             ColorMapSettings::Grayscale => "Grayscale",
+            ColorMapSettings::GrayscaleInv => "Grayscale inversed",
             ColorMapSettings::HueGradient => "Hue gradient",
         })
         .show_ui(ui, |ui| {
@@ -182,6 +183,11 @@ fn show_coloring(
                 &mut color_map,
                 ColorMapSettings::Grayscale,
                 "Grayscale",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::GrayscaleInv,
+                "Grayscale inversed",
             );
             ui.selectable_value(
                 &mut color_map,
@@ -287,9 +293,9 @@ fn show_render_mode(
 ) {
     ui.label("Preview quality");
     for (mode, label) in [
-        (RenderMode::Survey, "Survey"),
-        (RenderMode::Light, "Light"),
         (RenderMode::SuperLight, "SuperLight"),
+        (RenderMode::Light, "Light"),
+        (RenderMode::Survey, "Survey"),
         (RenderMode::Burst, "Burst"),
     ] {
         if ui
