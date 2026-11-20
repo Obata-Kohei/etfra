@@ -177,6 +177,12 @@ fn show_coloring(
             ColorMapSettings::Grayscale => "Grayscale",
             ColorMapSettings::GrayscaleInv => "Grayscale inversed",
             ColorMapSettings::HueGradient => "Hue gradient",
+            ColorMapSettings::HueGradientInv => "Hue gradient inversed",
+            ColorMapSettings::Red => "Red",
+            ColorMapSettings::Blue => "Blue",
+            ColorMapSettings::Orange => "Orange",
+            ColorMapSettings::Green => "Green",
+            ColorMapSettings::BlueAndRed => "Blue and Red",
         })
         .show_ui(ui, |ui| {
             ui.selectable_value(
@@ -194,6 +200,37 @@ fn show_coloring(
                 ColorMapSettings::HueGradient,
                 "Hue gradient",
             );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::HueGradientInv,
+                "Hue gradient inversed",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::Red,
+                "Red",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::Blue,
+                "Blue",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::Orange,
+                "Orange",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::Green,
+                "Green",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::BlueAndRed,
+                "Blue & Red",
+            );
+
         });
     if color_map != settings.color_map {
         actions.push(AppAction::SetColorMap(color_map));

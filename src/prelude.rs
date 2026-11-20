@@ -16,5 +16,13 @@ pub use crate::{
         complex_dynamics_presets::*,
     },
 
-    util::{color::Color, image_config::ImageConfig, palette::Palette, types::*},
+    util::{
+        color::Color,
+        image_config::ImageConfig,
+        palette::{
+            Palette,
+            ColorInterpolation,
+        },
+        types::*
+    },
 };

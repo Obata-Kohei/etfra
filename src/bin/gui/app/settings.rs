@@ -23,6 +23,12 @@ pub enum ColorMapSettings {
     Grayscale,
     GrayscaleInv,
     HueGradient,
+    HueGradientInv,
+    Red,
+    Blue,
+    Orange,
+    Green,
+    BlueAndRed,
 }
 
 impl ColorMapSettings {
@@ -37,6 +43,16 @@ impl ColorMapSettings {
                 p.reverse();
                 p
             }
+            ColorMapSettings::HueGradientInv => {
+                let mut p = Palette::gradation_by_hue(256, 0.0, 360.0, 1.0, 1.0);
+                p.reverse();
+                p
+            },
+            ColorMapSettings::Red => Palette::red_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::Blue => Palette::blue_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::Orange => Palette::orange_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::Green => Palette::green_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::BlueAndRed => Palette::blue_white_red(256, ColorInterpolation::Oklab),
         }
     }
 }
