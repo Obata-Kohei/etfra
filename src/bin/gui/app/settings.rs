@@ -12,9 +12,11 @@ pub enum DynamicsSettings {
     Mandelbrot,
     Julia { c_re: Float, c_im: Float },
     BurningShip,
+    PerpendicularBurningShip,
     Tricorn,
     Phoenix { feedback_re: Float, feedback_im: Float },
     Multibrot { power: Float },
+    Magnet1,
     Custom { expression: String },
 }
 
@@ -25,10 +27,15 @@ pub enum ColorMapSettings {
     HueGradient,
     HueGradientInv,
     Red,
+    RedInv,
     Blue,
+    BlueInv,
     Orange,
+    OrangeInv,
     Green,
+    GreenInv,
     BlueAndRed,
+    BlueAndRedInv,
 }
 
 impl ColorMapSettings {
@@ -49,10 +56,35 @@ impl ColorMapSettings {
                 p
             },
             ColorMapSettings::Red => Palette::red_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::RedInv => {
+                let mut p = Palette::red_white(256, ColorInterpolation::Oklab);
+                p.reverse();
+                p
+            },
             ColorMapSettings::Blue => Palette::blue_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::BlueInv => {
+                let mut p = Palette::blue_white(256, ColorInterpolation::Oklab);
+                p.reverse();
+                p
+            },
             ColorMapSettings::Orange => Palette::orange_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::OrangeInv => {
+                let mut p = Palette::orange_white(256, ColorInterpolation::Oklab);
+                p.reverse();
+                p
+            },
             ColorMapSettings::Green => Palette::green_white(256, ColorInterpolation::Oklab),
+            ColorMapSettings::GreenInv => {
+                let mut p = Palette::green_white(256, ColorInterpolation::Oklab);
+                p.reverse();
+                p
+            },
             ColorMapSettings::BlueAndRed => Palette::blue_white_red(256, ColorInterpolation::Oklab),
+            ColorMapSettings::BlueAndRedInv => {
+                let mut p = Palette::blue_white_red(256, ColorInterpolation::Oklab);
+                p.reverse();
+                p
+            }
         }
     }
 }

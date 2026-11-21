@@ -75,6 +75,11 @@ fn show_dynamics(
             );
             ui.selectable_value(
                 &mut dynamics,
+                DynamicsSettings::PerpendicularBurningShip,
+                "Perpendicular Burning Ship",
+            );
+            ui.selectable_value(
+                &mut dynamics,
                 DynamicsSettings::Tricorn,
                 "Tricorn",
             );
@@ -93,6 +98,11 @@ fn show_dynamics(
             );
             ui.selectable_value(
                 &mut dynamics,
+                DynamicsSettings::Magnet1,
+                "Magnet 1",
+            );
+            ui.selectable_value(
+                &mut dynamics,
                 DynamicsSettings::Custom {
                     expression: "z^2 + c".to_owned(),
                 },
@@ -100,6 +110,8 @@ fn show_dynamics(
             );
         });
 
+    // Dynamics固有のUI (パラメタ設定など)を設定する．
+    // 必要なければこの match の最後に書く
     match &mut dynamics {
         DynamicsSettings::Julia { c_re, c_im } => {
             ui.add(
@@ -144,7 +156,9 @@ fn show_dynamics(
         }
         DynamicsSettings::Mandelbrot
         | DynamicsSettings::BurningShip
-        | DynamicsSettings::Tricorn => {
+        | DynamicsSettings::PerpendicularBurningShip
+        | DynamicsSettings::Tricorn
+        | DynamicsSettings::Magnet1 => {
             formula_editor.stop_editing();
         }
     }
@@ -159,9 +173,11 @@ fn dynamics_name(dynamics: &DynamicsSettings) -> &'static str {
         DynamicsSettings::Mandelbrot => "Mandelbrot",
         DynamicsSettings::Julia { .. } => "Julia",
         DynamicsSettings::BurningShip => "Burning Ship",
+        DynamicsSettings::PerpendicularBurningShip => "Perpendicular Burning Ship",
         DynamicsSettings::Tricorn => "Tricorn",
         DynamicsSettings::Phoenix { .. } => "Phoenix",
         DynamicsSettings::Multibrot { .. } => "Multibrot",
+        DynamicsSettings::Magnet1 => "Magnet 1",
         DynamicsSettings::Custom { .. } => "Custom",
     }
 }
@@ -179,10 +195,15 @@ fn show_coloring(
             ColorMapSettings::HueGradient => "Hue gradient",
             ColorMapSettings::HueGradientInv => "Hue gradient inversed",
             ColorMapSettings::Red => "Red",
+            ColorMapSettings::RedInv => "Red inversed",
             ColorMapSettings::Blue => "Blue",
+            ColorMapSettings::BlueInv => "Blue inversed",
             ColorMapSettings::Orange => "Orange",
+            ColorMapSettings::OrangeInv => "Orange inversed",
             ColorMapSettings::Green => "Green",
+            ColorMapSettings::GreenInv => "Green inversed",
             ColorMapSettings::BlueAndRed => "Blue and Red",
+            ColorMapSettings::BlueAndRedInv => "Blue and Red inversed",
         })
         .show_ui(ui, |ui| {
             ui.selectable_value(
@@ -212,8 +233,18 @@ fn show_coloring(
             );
             ui.selectable_value(
                 &mut color_map,
+                ColorMapSettings::RedInv,
+                "Red inversed",
+            );
+            ui.selectable_value(
+                &mut color_map,
                 ColorMapSettings::Blue,
                 "Blue",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::BlueInv,
+                "Blue inversed",
             );
             ui.selectable_value(
                 &mut color_map,
@@ -222,15 +253,29 @@ fn show_coloring(
             );
             ui.selectable_value(
                 &mut color_map,
+                ColorMapSettings::OrangeInv,
+                "Orange inversed",
+            );
+            ui.selectable_value(
+                &mut color_map,
                 ColorMapSettings::Green,
                 "Green",
+            );
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::GreenInv,
+                "Green inversed",
             );
             ui.selectable_value(
                 &mut color_map,
                 ColorMapSettings::BlueAndRed,
                 "Blue & Red",
             );
-
+            ui.selectable_value(
+                &mut color_map,
+                ColorMapSettings::BlueAndRedInv,
+                "Blue & Red inversed",
+            );
         });
     if color_map != settings.color_map {
         actions.push(AppAction::SetColorMap(color_map));

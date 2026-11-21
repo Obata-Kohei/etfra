@@ -278,3 +278,34 @@ impl Dynamics for PerpendicularBurningShip {
         reflected * reflected + c
     }
 }
+
+
+/// Magnet 1
+/// z_{n+1} = [ { (z_n)^2 + c - 1 } / {2 * z_n + c - 2} ]^2
+#[derive(Debug, Default, Clone, Copy)]
+pub struct Magnet1;
+
+impl Magnet1 {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl Dynamics for Magnet1 {
+    type Param = Complex<Float>;
+    type State = Complex<Float>;
+
+    fn initial_state(&self, _p: &Self::Param) -> Self::State {
+        Complex::ZERO
+    }
+
+    fn param_from_xy(&self, point: (Float, Float)) -> Self::Param {
+        Complex::new(point.0, point.1)
+    }
+
+    fn step(&self, z: &Self::State, c: &Self::Param) -> Self::State {
+        let numerator = z * z + c - 1.0;
+        let denominator = 2.0 * z + c - 2.0;
+        (numerator / denominator) * (numerator / denominator)
+    }
+}

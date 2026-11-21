@@ -414,6 +414,10 @@ fn compute_dynamics(
             render_with_normalization(BurningShip::new(), settings, image_config, cancel)
         }
 
+        DynamicsSettings::PerpendicularBurningShip => {
+            render_with_normalization(PerpendicularBurningShip::new(), settings, image_config, cancel)
+        }
+
         DynamicsSettings::Tricorn => {
             render_with_normalization(Tricorn::new(), settings, image_config, cancel)
         }
@@ -430,6 +434,10 @@ fn compute_dynamics(
 
         DynamicsSettings::Multibrot { power } => {
             render_with_normalization(Multibrot::new(*power), settings, image_config, cancel)
+        }
+
+        DynamicsSettings::Magnet1 => {
+            render_with_normalization(Magnet1::new(), settings, image_config, cancel)
         }
 
         DynamicsSettings::Custom { expression } => {
