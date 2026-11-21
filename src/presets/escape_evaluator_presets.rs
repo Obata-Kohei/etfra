@@ -6,6 +6,12 @@ pub struct EscapeByCount<C> {
     pub condition: C,
 }
 
+impl<C> EscapeByCount<C> {
+    pub fn new(max_iter: usize, condition: C) -> Self {
+        Self {max_iter, condition}
+    }
+}
+
 impl<D, C> EscapeEvaluator<D> for EscapeByCount<C>
 where
     D: Dynamics,

@@ -1,0 +1,124 @@
+
+use super::{
+    render_config::RenderMode,
+    settings::AppSettings,
+};
+
+pub const MAX_HISTORY_ENTRIES: usize = 100;
+
+/// 計算処理の状態
+#[derive(Debug, Clone, PartialEq)]
+pub enum ComputeStatus {
+    Idle,
+    Running,
+    Cancelling,
+    Failed(String),
+}
+
+/// 描画済み画像データ
+#[derive(Debug, Clone)]
+pub struct RenderedImage {
+    pub resolution: (usize, usize),
+    pub rgba: Vec<u8>,
+}
+
+impl RenderedImage {
+    /// RGBAデータのサイズが解像度と一致するか確認する
+    pub fn is_valid(&self) -> bool {
+        let Some(expected) = self.resolution.0
+            .checked_mul(self.resolution.1)
+            .and_then(|n| n.checked_mul(4))
+        else {
+            return false;
+        };
+
+        self.rgba.len() == expected
+    }
+}
+
+/// エクスポート処理の状態
+#[derive(Debug, Clone, PartialEq, Default)]
+pub enum ExportState {
+    #[default]
+    Idle,
+    Running,
+    Completed(String),
+    Failed(String),
+}
+
+/// 設定履歴
+#[derive(Debug, Default)]
+pub struct History {
+    entries: Vec<SettingsSnapshot>,
+}
+
+#[derive(Debug)]
+struct SettingsSnapshot {
+    settings: AppSettings,
+    render_mode: RenderMode,
+}
+
+impl History {
+    pub fn push(&mut self, settings: &AppSettings, render_mode: RenderMode) {
+        if self.entries.len() >= MAX_HISTORY_ENTRIES {
+            self.entries.remove(0);
+        }
+        self.entries.push(SettingsSnapshot {
+            settings: settings.clone(),
+            render_mode,
+        });
+    }
+
+    pub fn undo(&mut self) -> Option<(AppSettings, RenderMode)> {
+        self.entries
+            .pop()
+            .map(|snapshot| (snapshot.settings, snapshot.render_mode))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn history_retains_only_the_most_recent_entries() {
+        let mut history = History::default();
+        let mut settings = AppSettings::default();
+
+        for value in 0..=MAX_HISTORY_ENTRIES {
+            settings.max_iter = value;
+            history.push(&settings, RenderMode::Survey);
+        }
+
+        for value in (1..=MAX_HISTORY_ENTRIES).rev() {
+            let (snapshot, _) = history.undo().unwrap();
+            assert_eq!(snapshot.max_iter, value);
+        }
+        assert!(history.undo().is_none());
+    }
+}
+
+/// アプリケーション全体の状態
+pub struct AppState {
+    pub settings: AppSettings,
+    pub render_mode: RenderMode,
+    pub show_center_lines: bool,
+    pub compute_status: ComputeStatus,
+    pub image: Option<RenderedImage>,
+    pub history: History,
+    pub export_state: ExportState,
+}
+
+impl Default for AppState {
+    fn default() -> Self {
+        Self {
+            settings: AppSettings::default(),
+            render_mode: RenderMode::Survey,
+            show_center_lines: false,
+            compute_status: ComputeStatus::Idle,
+            image: None,
+            history: History::default(),
+            export_state: ExportState::Idle,
+        }
+    }
+}
