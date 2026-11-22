@@ -110,7 +110,7 @@ impl EtfraApp {
                 self.texture = Some(ctx.load_texture(
                     "fractal-preview",
                     color_image,
-                    egui::TextureOptions::NEAREST,
+                    egui::TextureOptions::LINEAR,
                 ));
                 self.state.image = Some(image);
                 self.state.compute_status = ComputeStatus::Idle;
