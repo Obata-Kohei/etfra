@@ -10,6 +10,7 @@ GUI によるインタラクティブな探索に加え，フラクタルの計�
 ## Gallery
 
 生成したフラクタル画像の例:
+
 ![Example 1](gallery/fractal1.png)
 ![Example 2](gallery/fractal2.png)
 ![Example 3](gallery/fractal3.png)
