@@ -110,7 +110,7 @@ impl EtfraApp {
                 self.texture = Some(ctx.load_texture(
                     "fractal-preview",
                     color_image,
-                    egui::TextureOptions::LINEAR,
+                    egui::TextureOptions::NEAREST,
                 ));
                 self.state.image = Some(image);
                 self.state.compute_status = ComputeStatus::Idle;
@@ -580,7 +580,7 @@ impl eframe::App for EtfraApp {
             match &self.state.compute_status {
                 ComputeStatus::Idle => {
                     ui.label(
-                        "WASD/Arrow keys: move, Shift+Arrow: half move, Q/E: zoom, R: redraw, L: center lines, Z: undo, X/C: Survey/Burst",
+                        "WASD/Arrow keys: move, Shift+WASD/Arrow: half move, Q/E: zoom, R: redraw, L: center lines, Z: undo, X/C/V/B: Change render mode",
                     );
                 }
                 ComputeStatus::Running => {
