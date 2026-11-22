@@ -15,6 +15,7 @@ GUI によるインタラクティブな探索に加え，フラクタルの計�
 ![Example 3](gallery/fractal3.png)
 ![Example 4](gallery/fractal4.png)
 ![Example 5](gallery/fractal5.png)
+![Example 6](gallery/fractal6.png)
 
 ## Features
 
