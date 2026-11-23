@@ -62,7 +62,8 @@ pub struct EtfraApp {
 }
 
 impl EtfraApp {
-    pub fn new(_cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        super::theme::configure(&cc.egui_ctx);  // デザインテーマを設定
         let mut state = AppState::default();
         let mut compute = ComputeManager::new(Arc::new(FractalBackend));
         let active_generation = Some(compute.request(state.settings.clone()));

@@ -1,4 +1,5 @@
 pub mod app;
+pub mod theme;
 pub mod settings;
 pub mod action;
 pub mod state;
